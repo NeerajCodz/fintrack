@@ -33,14 +33,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    request.nextUrl.pathname !== "/"
-  ) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/auth/login"
-    return NextResponse.redirect(url)
+  // Protected routes that require authentication
+  const protectedPaths = ["/api/chat", "/api/conversations", "/api/dashboard"]
+  const isProtectedPath = protectedPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  )
+
+  if (!user && isProtectedPath) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
   }
 
   return supabaseResponse

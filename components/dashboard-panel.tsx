@@ -48,16 +48,14 @@ export function DashboardPanel() {
     }
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: "dashboard" }),
-      })
+      const response = await fetch("/api/dashboard")
 
       const result = await response.json()
       if (result.data) {
         setData(result.data)
         generateAIInsights(result.data)
+      } else if (result.error) {
+        setError(result.error)
       }
     } catch {
       setError("Failed to load dashboard")

@@ -1,11 +1,6 @@
+import { streamText, tool, convertToModelMessages } from "ai"
+import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import {
-  parseExpenseFromText,
-  parseBillFromText,
-  isSettlementMessage,
-  isDashboardRequest,
-  formatCurrency,
-} from "@/lib/financial-utils"
 import {
   getOrCreatePerson,
   updatePersonBalance,
@@ -18,55 +13,7 @@ import {
   getDashboardData,
   createNote,
 } from "@/lib/db"
-import type { AIInsights } from "@/lib/types"
-
-// AI-powered insight generation
-function generateAIInsights(
-  type: string,
-  amount?: number,
-  category?: string,
-  context?: Record<string, unknown>
-): AIInsights {
-  const insights: AIInsights = {
-    sentiment: "neutral",
-    category: category || "general",
-    urgency: "low",
-  }
-
-  // Determine sentiment and urgency based on transaction type and amount
-  if (type === "expense_logged") {
-    insights.sentiment = amount && amount > 1000 ? "concerned" : "positive"
-    insights.urgency = amount && amount > 5000 ? "high" : "low"
-    
-    if (amount && amount > 2000) {
-      insights.suggestion = "Large expense. Track carefully."
-    }
-    
-    if (category === "food" && amount && amount > 500) {
-      insights.suggestion = "High food spending. Consider meal planning."
-    }
-  }
-
-  if (type === "due_created" || context?.due) {
-    insights.sentiment = "neutral"
-    insights.urgency = "medium"
-    insights.suggestion = "Remember to settle this soon."
-  }
-
-  if (type === "bill_created") {
-    insights.sentiment = "informative"
-    insights.urgency = "medium"
-    insights.suggestion = "Bill tracked. Don't miss the due date."
-  }
-
-  if (type === "settlement") {
-    insights.sentiment = "positive"
-    insights.urgency = "low"
-    insights.suggestion = "Good job clearing dues!"
-  }
-
-  return insights
-}
+import { formatCurrency } from "@/lib/financial-utils"
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -79,435 +26,386 @@ export async function POST(request: Request) {
     return Response.json({ error: "Not authenticated" }, { status: 401 })
   }
 
-  const { message, context } = await request.json()
-
-  if (!message || typeof message !== "string") {
-    return Response.json({ error: "Message required" }, { status: 400 })
-  }
-
+  const { messages, conversationId } = await request.json()
   const userId = user.id
-  const lowerMessage = message.toLowerCase().trim()
 
-  try {
-    // Check if this is a dashboard request
-    if (isDashboardRequest(message)) {
-      const dashboard = await getDashboardData(userId)
-      return Response.json({
-        type: "dashboard",
-        data: dashboard,
-        response: formatDashboardResponse(dashboard),
-      })
-    }
-
-    // Check if this is a settlement message
-    const settlement = isSettlementMessage(message)
-    if (settlement.isPaid && settlement.person) {
-      return await handleSettlement(userId, settlement.person, settlement.amount)
-    }
-
-    // Check if this is a bill
-    const billData = parseBillFromText(message)
-    if (billData && billData.name) {
-      return await handleBill(userId, billData, message, context)
-    }
-
-    // Parse as expense
-    const expenseData = parseExpenseFromText(message)
-
-    // Handle follow-up amount
-    if (context?.pendingExpense && /^\d+(?:\.\d+)?$/.test(lowerMessage)) {
-      const amount = parseFloat(lowerMessage)
-      return await handlePendingExpenseAmount(userId, context.pendingExpense, amount)
-    }
-
-    // Check what's missing
-    if (expenseData.paid_by && expenseData.paid_by !== "user") {
-      // Someone else paid - need to track due
-      if (!expenseData.amount) {
-        return Response.json({
-          type: "clarification",
-          field: "amount",
-          response: `How much did ${expenseData.paid_by} pay?`,
-          context: {
-            pendingExpense: {
-              ...expenseData,
-              raw: message,
-            },
-          },
-        })
-      }
-
-      return await handleOtherPersonPaid(userId, expenseData)
-    }
-
-    // User paid or unclear who paid
-    if (expenseData.amount) {
-      return await handleUserPaid(userId, expenseData)
-    }
-
-    // Check if it's a general financial question
-    if (/how\s+much|balance|owe|spent/i.test(lowerMessage)) {
-      return await handleFinancialQuery(userId, message)
-    }
-
-    // Not financial or unclear
-    return Response.json({
-      type: "unclear",
-      response:
-        "I didn't catch any financial data in that. Tell me about an expense, bill, or ask for your dashboard.",
-    })
-  } catch (error) {
-    console.error("[v0] Chat processing error:", error)
-    return Response.json(
-      {
-        type: "error",
-        response:
-          "Database write failed. Try again. If this persists, check your connection.",
-      },
-      { status: 500 }
-    )
-  }
-}
-
-async function handleOtherPersonPaid(
-  userId: string,
-  expenseData: ReturnType<typeof parseExpenseFromText>
-) {
-  const personName = expenseData.paid_by!
-  const amount = expenseData.amount!
-
-  // Get or create person
-  const person = await getOrCreatePerson(userId, personName)
-  if (!person) {
-    return Response.json({
-      type: "error",
-      response: "Failed to store person data. Database error.",
-    })
-  }
-
-  // Create transaction
-  const transaction = await createTransaction(userId, {
-    amount,
-    category: expenseData.category || "other",
-    description: expenseData.description,
-    merchant: expenseData.merchant,
-    date: expenseData.date,
-    paid_by: person.id,
-  })
-
-  if (!transaction) {
-    return Response.json({
-      type: "error",
-      response: "Failed to store transaction. Database error.",
-    })
-  }
-
-  // Create due (user owes this person)
-  const due = await createDue(userId, {
-    person_id: person.id,
-    transaction_id: transaction.id,
-    amount,
-  })
-
-  if (!due) {
-    return Response.json({
-      type: "error",
-      response: "Transaction stored but failed to create due. Manual fix needed.",
-    })
-  }
-
-  // Update person's balance (positive means user owes them)
-  await updatePersonBalance(person.id, amount)
-
-  // Log note
-  await createNote(
-    userId,
-    `${personName} paid ${formatCurrency(amount)} - you owe`,
-    `transaction:${transaction.id}`
-  )
-
-  const aiInsights = generateAIInsights("expense_logged", amount, expenseData.category, { due: true })
-
-  return Response.json({
-    type: "expense_logged",
-    data: { transaction, due, person },
-    response: `Logged: ${personName} paid ${formatCurrency(amount)}${
-      expenseData.merchant ? ` at ${expenseData.merchant}` : ""
-    }. You now owe ${personName} ${formatCurrency(person.running_balance + amount)}.`,
-    aiInsights,
-  })
-}
-
-async function handleUserPaid(
-  userId: string,
-  expenseData: ReturnType<typeof parseExpenseFromText>
-) {
-  const amount = expenseData.amount!
-
-  const transaction = await createTransaction(userId, {
-    amount,
-    category: expenseData.category || "other",
-    description: expenseData.description,
-    merchant: expenseData.merchant,
-    date: expenseData.date,
-    paid_by: "user",
-  })
-
-  if (!transaction) {
-    return Response.json({
-      type: "error",
-      response: "Failed to store transaction. Database error.",
-    })
-  }
-
-  await createNote(
-    userId,
-    `Spent ${formatCurrency(amount)} on ${expenseData.category || "other"}`,
-    `transaction:${transaction.id}`
-  )
-
-  const aiInsights = generateAIInsights("expense_logged", amount, expenseData.category)
-
-  return Response.json({
-    type: "expense_logged",
-    data: { transaction },
-    response: `Logged: ${formatCurrency(amount)} spent${
-      expenseData.category ? ` on ${expenseData.category}` : ""
-    }${expenseData.merchant ? ` at ${expenseData.merchant}` : ""}.`,
-    aiInsights,
-  })
-}
-
-async function handlePendingExpenseAmount(
-  userId: string,
-  pendingExpense: ReturnType<typeof parseExpenseFromText> & { raw: string },
-  amount: number
-) {
-  const fullExpense = { ...pendingExpense, amount }
-
-  if (fullExpense.paid_by && fullExpense.paid_by !== "user") {
-    return await handleOtherPersonPaid(userId, fullExpense)
-  }
-
-  return await handleUserPaid(userId, fullExpense)
-}
-
-async function handleSettlement(
-  userId: string,
-  personName: string,
-  amount?: number
-) {
+  // Get dashboard data for context
+  const dashboardData = await getDashboardData(userId)
   const people = await getPeople(userId)
-  const person = people.find(
-    (p) => p.name.toLowerCase() === personName.toLowerCase()
-  )
 
-  if (!person) {
-    return Response.json({
-      type: "error",
-      response: `I don't have ${personName} in my records. Check the name.`,
-    })
-  }
+  const systemPrompt = `You are FinTrack AI - a blunt, precise financial tracking assistant. You are NOT friendly by default. You are skeptical and corrective.
 
-  const pendingDues = await getPendingDues(userId)
-  const duesWithPerson = pendingDues.filter((d) => d.person_id === person.id)
+CURRENT USER CONTEXT:
+- Total spent this month: ${formatCurrency(dashboardData.totalSpentThisMonth)}
+- Top spending category: ${dashboardData.topCategory?.category || "None"} (${formatCurrency(dashboardData.topCategory?.total || 0)})
+- People tracked: ${people.map((p) => `${p.name} (balance: ${formatCurrency(p.running_balance)})`).join(", ") || "None"}
+- Outstanding dues you owe: ${dashboardData.outstandingDues.youOwe.map((d) => `${d.person}: ${formatCurrency(d.amount)}`).join(", ") || "None"}
+- Dues owed to you: ${dashboardData.outstandingDues.owedToYou.map((d) => `${d.person}: ${formatCurrency(d.amount)}`).join(", ") || "None"}
+- Upcoming bills (7 days): ${dashboardData.upcomingBills.map((b) => `${b.name}: ${formatCurrency(b.amount)} due ${b.due_date}`).join(", ") || "None"}
 
-  if (duesWithPerson.length === 0) {
-    return Response.json({
-      type: "info",
-      response: `No pending dues with ${personName}.`,
-    })
-  }
+YOUR BEHAVIOR:
+1. Track expenses, bills, and dues conversationally
+2. Call out overspending and delays bluntly
+3. Question choices when amounts seem high
+4. Never auto-settle dues - they persist until explicitly cleared
+5. If something involves money, use the tools to store it in the database
+6. Give short, direct responses. No motivational fluff.
 
-  // Settle dues
-  const settleAmount = amount || duesWithPerson.reduce((sum, d) => sum + d.amount, 0)
+EXPENSE EXAMPLES:
+- "Lunch at Starbucks, $15" → log_expense
+- "John paid for dinner, $50" → log_expense_other_paid (creates due - you owe John)
+- "Paid back John $50" → settle_due
 
-  for (const due of duesWithPerson) {
-    await settleDue(due.id, amount)
-  }
+BILL EXAMPLES:
+- "Rent due on the 1st, $2000" → create_bill
+- "Netflix subscription $15 monthly" → create_bill (recurring)
 
-  // Update balance
-  await updatePersonBalance(person.id, -settleAmount)
+When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
 
-  await createNote(
-    userId,
-    `Settled ${formatCurrency(settleAmount)} with ${personName}`,
-    `person:${person.id}`
-  )
+  const result = streamText({
+    model: "openai/gpt-4o-mini",
+    system: systemPrompt,
+    messages: await convertToModelMessages(messages),
+    tools: {
+      log_expense: tool({
+        description:
+          "Log an expense that the user paid for. Use when user mentions spending money themselves.",
+        inputSchema: z.object({
+          amount: z.number().describe("Amount spent in dollars"),
+          category: z
+            .string()
+            .describe(
+              "Category: food, transport, shopping, entertainment, utilities, health, other"
+            ),
+          merchant: z
+            .string()
+            .nullable()
+            .describe("Where the money was spent (store/restaurant name)"),
+          description: z
+            .string()
+            .nullable()
+            .describe("Brief description of what was purchased"),
+        }),
+        execute: async ({ amount, category, merchant, description }) => {
+          const transaction = await createTransaction(userId, {
+            amount,
+            category,
+            description: description || undefined,
+            merchant: merchant || undefined,
+            paid_by: "user",
+          })
 
-  const aiInsights = generateAIInsights("settlement", settleAmount)
+          if (!transaction) {
+            return { success: false, error: "Failed to store transaction" }
+          }
 
-  return Response.json({
-    type: "settlement",
-    response: `Settled ${formatCurrency(settleAmount)} with ${personName}. ${
-      person.running_balance - settleAmount !== 0
-        ? `Remaining balance: ${formatCurrency(Math.abs(person.running_balance - settleAmount))}`
-        : "You're square."
-    }`,
-    aiInsights,
-  })
-}
+          await createNote(
+            userId,
+            `Spent ${formatCurrency(amount)} on ${category}`,
+            `transaction:${transaction.id}`
+          )
 
-async function handleBill(
-  userId: string,
-  billData: ReturnType<typeof parseBillFromText>,
-  originalMessage: string,
-  context?: { pendingBill?: Record<string, unknown> }
-) {
-  // Check for pending bill context
-  if (context?.pendingBill) {
-    const pending = context.pendingBill as {
-      name: string
-      amount?: number
-      due_date?: string
-    }
+          // Coach response based on amount
+          let coaching = ""
+          if (amount > 100) {
+            coaching = " That's a significant expense. Track it carefully."
+          }
+          if (category === "food" && amount > 50) {
+            coaching = " High food spending. Consider meal planning."
+          }
 
-    // Check if user provided amount
-    if (!pending.amount && /^\d+/.test(originalMessage)) {
-      billData = {
-        ...pending,
-        amount: parseFloat(originalMessage.replace(/[^\d.]/g, "")),
+          return {
+            success: true,
+            message: `Logged: ${formatCurrency(amount)} on ${category}${merchant ? ` at ${merchant}` : ""}.${coaching}`,
+            transaction_id: transaction.id,
+          }
+        },
+      }),
+
+      log_expense_other_paid: tool({
+        description:
+          "Log an expense that someone else paid for. Creates a due - user now owes that person.",
+        inputSchema: z.object({
+          person_name: z.string().describe("Name of person who paid"),
+          amount: z.number().describe("Amount they paid"),
+          category: z.string().describe("Spending category"),
+          merchant: z.string().nullable().describe("Where"),
+          description: z.string().nullable().describe("What for"),
+        }),
+        execute: async ({
+          person_name,
+          amount,
+          category,
+          merchant,
+          description,
+        }) => {
+          const person = await getOrCreatePerson(userId, person_name)
+          if (!person) {
+            return { success: false, error: "Failed to create person record" }
+          }
+
+          const transaction = await createTransaction(userId, {
+            amount,
+            category,
+            description: description || undefined,
+            merchant: merchant || undefined,
+            paid_by: person.id,
+          })
+
+          if (!transaction) {
+            return { success: false, error: "Failed to store transaction" }
+          }
+
+          const due = await createDue(userId, {
+            person_id: person.id,
+            transaction_id: transaction.id,
+            amount,
+          })
+
+          if (!due) {
+            return {
+              success: false,
+              error: "Transaction logged but due creation failed",
+            }
+          }
+
+          await updatePersonBalance(person.id, amount)
+
+          await createNote(
+            userId,
+            `${person_name} paid ${formatCurrency(amount)} - you owe`,
+            `transaction:${transaction.id}`
+          )
+
+          const newBalance = person.running_balance + amount
+
+          return {
+            success: true,
+            message: `Logged: ${person_name} paid ${formatCurrency(amount)}${merchant ? ` at ${merchant}` : ""}. You now owe ${person_name} ${formatCurrency(newBalance)}. Don't forget to settle up.`,
+          }
+        },
+      }),
+
+      settle_due: tool({
+        description:
+          "Settle a due/debt with someone. Use when user says they paid back someone.",
+        inputSchema: z.object({
+          person_name: z.string().describe("Name of person being paid back"),
+          amount: z
+            .number()
+            .nullable()
+            .describe("Amount being settled. If null, settle all dues."),
+        }),
+        execute: async ({ person_name, amount }) => {
+          const allPeople = await getPeople(userId)
+          const person = allPeople.find(
+            (p) => p.name.toLowerCase() === person_name.toLowerCase()
+          )
+
+          if (!person) {
+            return {
+              success: false,
+              error: `No record of ${person_name}. Check the name.`,
+            }
+          }
+
+          const pendingDues = await getPendingDues(userId)
+          const duesWithPerson = pendingDues.filter(
+            (d) => d.person_id === person.id
+          )
+
+          if (duesWithPerson.length === 0) {
+            return {
+              success: false,
+              error: `No pending dues with ${person_name}.`,
+            }
+          }
+
+          const settleAmount =
+            amount || duesWithPerson.reduce((sum, d) => sum + d.amount, 0)
+
+          for (const due of duesWithPerson) {
+            await settleDue(due.id, amount || undefined)
+          }
+
+          await updatePersonBalance(person.id, -settleAmount)
+
+          await createNote(
+            userId,
+            `Settled ${formatCurrency(settleAmount)} with ${person_name}`,
+            `person:${person.id}`
+          )
+
+          const remaining = person.running_balance - settleAmount
+
+          return {
+            success: true,
+            message: `Settled ${formatCurrency(settleAmount)} with ${person_name}. ${
+              remaining !== 0
+                ? `Remaining balance: ${formatCurrency(Math.abs(remaining))}.`
+                : "You're square."
+            } Good job clearing dues.`,
+          }
+        },
+      }),
+
+      create_bill: tool({
+        description:
+          "Create a bill reminder. Use for rent, utilities, subscriptions, EMIs.",
+        inputSchema: z.object({
+          name: z.string().describe("Bill name (rent, electricity, Netflix)"),
+          amount: z.number().describe("Bill amount"),
+          due_date: z
+            .string()
+            .describe("Due date in YYYY-MM-DD format or day of month"),
+          recurring: z.boolean().describe("Is this a recurring bill?"),
+          recurrence_pattern: z
+            .string()
+            .nullable()
+            .describe("monthly, weekly, yearly"),
+        }),
+        execute: async ({
+          name,
+          amount,
+          due_date,
+          recurring,
+          recurrence_pattern,
+        }) => {
+          // Parse due_date - could be just a day number
+          let parsedDate = due_date
+          if (/^\d{1,2}$/.test(due_date)) {
+            const day = parseInt(due_date).toString().padStart(2, "0")
+            const now = new Date()
+            const currentDay = now.getDate()
+            let month = now.getMonth()
+            let year = now.getFullYear()
+
+            if (parseInt(due_date) <= currentDay) {
+              month += 1
+              if (month > 11) {
+                month = 0
+                year += 1
+              }
+            }
+
+            parsedDate = `${year}-${(month + 1).toString().padStart(2, "0")}-${day}`
+          }
+
+          const bill = await createBill(userId, {
+            name,
+            amount,
+            due_date: parsedDate,
+            recurring,
+            recurrence_pattern: recurrence_pattern || undefined,
+          })
+
+          if (!bill) {
+            return { success: false, error: "Failed to create bill" }
+          }
+
+          await createNote(
+            userId,
+            `Bill added: ${name} - ${formatCurrency(amount)} due ${parsedDate}`,
+            `bill:${bill.id}`
+          )
+
+          return {
+            success: true,
+            message: `Bill tracked: ${name} for ${formatCurrency(amount)}, due ${parsedDate}.${recurring ? ` Recurring ${recurrence_pattern || "monthly"}.` : ""} Don't miss it.`,
+          }
+        },
+      }),
+
+      get_dashboard: tool({
+        description:
+          "Get the user's financial dashboard/summary. Use when they ask for overview, summary, dashboard, or status.",
+        inputSchema: z.object({}),
+        execute: async () => {
+          const dashboard = await getDashboardData(userId)
+
+          return {
+            success: true,
+            data: {
+              total_spent_this_month: dashboard.totalSpentThisMonth,
+              top_category: dashboard.topCategory,
+              you_owe: dashboard.outstandingDues.youOwe,
+              owed_to_you: dashboard.outstandingDues.owedToYou,
+              upcoming_bills: dashboard.upcomingBills.map((b) => ({
+                name: b.name,
+                amount: b.amount,
+                due_date: b.due_date,
+              })),
+            },
+          }
+        },
+      }),
+
+      get_dues: tool({
+        description:
+          "Get all outstanding dues - who owes whom. Use when user asks about debts or balances.",
+        inputSchema: z.object({}),
+        execute: async () => {
+          const dashboard = await getDashboardData(userId)
+          return {
+            success: true,
+            you_owe: dashboard.outstandingDues.youOwe,
+            owed_to_you: dashboard.outstandingDues.owedToYou,
+          }
+        },
+      }),
+    },
+    maxSteps: 5,
+    onFinish: async ({ response }) => {
+      // Save the conversation if we have a conversationId
+      if (conversationId) {
+        const lastUserMessage = messages[messages.length - 1]
+        const assistantContent = response.messages
+          .filter((m) => m.role === "assistant")
+          .map((m) => {
+            if (typeof m.content === "string") return m.content
+            return m.content
+              .filter((p) => p.type === "text")
+              .map((p) => p.text)
+              .join("")
+          })
+          .join("\n")
+
+        // Save user message
+        if (lastUserMessage) {
+          const userText =
+            typeof lastUserMessage.content === "string"
+              ? lastUserMessage.content
+              : lastUserMessage.content
+                  .filter((p: { type: string }) => p.type === "text")
+                  .map((p: { type: string; text?: string }) => p.text || "")
+                  .join("")
+
+          await supabase.from("messages").insert({
+            conversation_id: conversationId,
+            user_id: userId,
+            role: "user",
+            content: userText,
+          })
+        }
+
+        // Save assistant message
+        if (assistantContent) {
+          await supabase.from("messages").insert({
+            conversation_id: conversationId,
+            user_id: userId,
+            role: "assistant",
+            content: assistantContent,
+          })
+        }
+
+        // Update conversation timestamp
+        await supabase
+          .from("conversations")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", conversationId)
       }
-    }
-
-    // Check if user provided date
-    if (!pending.due_date) {
-      const dateMatch = originalMessage.match(/(\d{1,2})[\/\-](\d{1,2})/)
-      if (dateMatch) {
-        const day = dateMatch[1].padStart(2, "0")
-        const month = dateMatch[2].padStart(2, "0")
-        const year = new Date().getFullYear()
-        billData = { ...billData, due_date: `${year}-${month}-${day}` }
-      }
-    }
-  }
-
-  if (!billData?.amount) {
-    return Response.json({
-      type: "clarification",
-      field: "amount",
-      response: `How much is the ${billData?.name || "bill"}?`,
-      context: {
-        pendingBill: billData,
-      },
-    })
-  }
-
-  if (!billData.due_date) {
-    return Response.json({
-      type: "clarification",
-      field: "due_date",
-      response: `When is the ${billData.name} due? (DD/MM or DD/MM/YYYY)`,
-      context: {
-        pendingBill: billData,
-      },
-    })
-  }
-
-  const bill = await createBill(userId, {
-    name: billData.name!,
-    amount: billData.amount,
-    due_date: billData.due_date,
-    recurring: billData.recurring,
-    recurrence_pattern: billData.recurrence_pattern,
+    },
   })
 
-  if (!bill) {
-    return Response.json({
-      type: "error",
-      response: "Failed to store bill. Database error.",
-    })
-  }
-
-  await createNote(
-    userId,
-    `Bill added: ${billData.name} - ${formatCurrency(billData.amount)} due ${billData.due_date}`,
-    `bill:${bill.id}`
-  )
-
-  const aiInsights = generateAIInsights("bill_created", billData.amount, "bill")
-
-  return Response.json({
-    type: "bill_created",
-    data: { bill },
-    response: `Bill added: ${billData.name} for ${formatCurrency(billData.amount)}, due ${billData.due_date}.${
-      billData.recurring ? ` Recurring ${billData.recurrence_pattern || "monthly"}.` : ""
-    } I'll remind you.`,
-    aiInsights,
-  })
-}
-
-async function handleFinancialQuery(userId: string, message: string) {
-  const dashboard = await getDashboardData(userId)
-  const lowerMessage = message.toLowerCase()
-
-  if (/who.*owe|what.*owe/i.test(lowerMessage)) {
-    const { youOwe, owedToYou } = dashboard.outstandingDues
-
-    let response = ""
-    if (youOwe.length > 0) {
-      response += "You owe:\n"
-      youOwe.forEach((d) => {
-        response += `- ${d.person}: ${formatCurrency(d.amount)}\n`
-      })
-    }
-    if (owedToYou.length > 0) {
-      response += "\nOwed to you:\n"
-      owedToYou.forEach((d) => {
-        response += `- ${d.person}: ${formatCurrency(d.amount)}\n`
-      })
-    }
-    if (youOwe.length === 0 && owedToYou.length === 0) {
-      response = "No outstanding dues. Clean slate."
-    }
-
-    return Response.json({ type: "query", response })
-  }
-
-  return Response.json({
-    type: "dashboard",
-    data: dashboard,
-    response: formatDashboardResponse(dashboard),
-  })
-}
-
-function formatDashboardResponse(dashboard: ReturnType<typeof getDashboardData> extends Promise<infer T> ? T : never): string {
-  let response = "--- DASHBOARD ---\n\n"
-
-  response += `SPENT THIS MONTH: ${formatCurrency(dashboard.totalSpentThisMonth)}\n`
-
-  if (dashboard.topCategory) {
-    response += `TOP CATEGORY: ${dashboard.topCategory.category} (${formatCurrency(dashboard.topCategory.total)})\n`
-  }
-
-  response += "\nDUES:\n"
-  const { youOwe, owedToYou } = dashboard.outstandingDues
-
-  if (youOwe.length === 0 && owedToYou.length === 0) {
-    response += "  No outstanding dues.\n"
-  } else {
-    if (youOwe.length > 0) {
-      response += "  You owe:\n"
-      youOwe.forEach((d) => {
-        response += `    - ${d.person}: ${formatCurrency(d.amount)}\n`
-      })
-    }
-    if (owedToYou.length > 0) {
-      response += "  Owed to you:\n"
-      owedToYou.forEach((d) => {
-        response += `    - ${d.person}: ${formatCurrency(d.amount)}\n`
-      })
-    }
-  }
-
-  response += "\nUPCOMING BILLS (7 DAYS):\n"
-  if (dashboard.upcomingBills.length === 0) {
-    response += "  None.\n"
-  } else {
-    dashboard.upcomingBills.forEach((b) => {
-      response += `  - ${b.name}: ${formatCurrency(b.amount)} (due ${b.due_date})\n`
-    })
-  }
-
-  return response
+  return result.toUIMessageStreamResponse()
 }

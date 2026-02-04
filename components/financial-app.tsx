@@ -1,24 +1,71 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { ChatInterface } from "@/components/chat-interface"
-import { DashboardPanel } from "@/components/dashboard-panel"
 import { AnimatedBackground } from "@/components/animated-background"
+import { ChatView } from "@/components/chat-view"
+import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
-import { LogOut, Menu, X, LayoutDashboard, MessageSquare, Wallet, Sparkles } from "lucide-react"
+import { Menu, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+
+interface Conversation {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
 
 interface FinancialAppProps {
   userEmail: string
 }
 
 export function FinancialApp({ userEmail }: FinancialAppProps) {
-  const [showDashboard, setShowDashboard] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+
+  const fetchConversations = useCallback(async () => {
+    const response = await fetch("/api/conversations")
+    if (response.ok) {
+      const data = await response.json()
+      setConversations(data.conversations || [])
+    }
+    setIsLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchConversations()
+  }, [fetchConversations])
+
+  async function handleNewChat() {
+    // Just reset to home view - conversation will be created on first message
+    setActiveConversationId(null)
+    setSidebarOpen(false)
+  }
+
+  async function handleSelectConversation(id: string) {
+    setActiveConversationId(id)
+    setSidebarOpen(false)
+  }
+
+  async function handleDeleteConversation(id: string) {
+    await fetch("/api/conversations", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId: id }),
+    })
+    
+    if (activeConversationId === id) {
+      setActiveConversationId(null)
+    }
+    
+    fetchConversations()
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -26,199 +73,83 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
     router.refresh()
   }
 
+  async function handleConversationCreated(id: string, title: string) {
+    setActiveConversationId(id)
+    fetchConversations()
+  }
+
   return (
-    <div className="h-screen flex flex-col relative">
+    <div className="h-screen flex relative overflow-hidden">
       <AnimatedBackground />
       
-      {/* Header */}
-      <motion.header 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="glass-strong border-b border-white/10 px-4 py-3 flex items-center justify-between z-10"
-      >
-        <div className="flex items-center gap-3">
-          <motion.div
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center"
-          >
-            <Wallet className="h-5 w-5 text-white" />
-          </motion.div>
-          <div>
-            <h1 className="text-lg font-bold gradient-text flex items-center gap-2">
-              FinTrack
-              <Sparkles className="h-4 w-4 text-emerald-400" />
-            </h1>
-          </div>
-          <span className="hidden sm:inline text-xs text-muted-foreground glass px-2 py-1 rounded-full">
-            {userEmail}
-          </span>
-        </div>
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex">
+        <Sidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewChat={handleNewChat}
+          onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onSignOut={handleSignOut}
+          userEmail={userEmail}
+          isLoading={isLoading}
+        />
+      </div>
 
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-2">
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              variant={showDashboard ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowDashboard(true)}
-              className={showDashboard 
-                ? "bg-gradient-to-r from-blue-500 to-emerald-500 text-white border-0" 
-                : "glass border-white/10 hover:bg-white/5"
-              }
-            >
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              variant={!showDashboard ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowDashboard(false)}
-              className={!showDashboard 
-                ? "bg-gradient-to-r from-blue-500 to-emerald-500 text-white border-0" 
-                : "glass border-white/10 hover:bg-white/5"
-              }
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Chat
-            </Button>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleSignOut}
-              className="text-muted-foreground hover:text-foreground hover:bg-white/5"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign out
-            </Button>
-          </motion.div>
-        </div>
-
-        {/* Mobile menu button */}
-        <motion.div whileTap={{ scale: 0.9 }}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden glass"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-            <span className="sr-only">Toggle menu</span>
-          </Button>
-        </motion.div>
-      </motion.header>
-
-      {/* Mobile menu */}
+      {/* Mobile Sidebar */}
       <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden glass-strong border-b border-white/10 p-4 space-y-2 z-10"
-          >
-            <p className="text-xs text-muted-foreground mb-3 px-2">{userEmail}</p>
-            <Button
-              variant={showDashboard ? "default" : "outline"}
-              size="sm"
-              className={`w-full justify-start ${showDashboard 
-                ? "bg-gradient-to-r from-blue-500 to-emerald-500 text-white border-0" 
-                : "glass border-white/10"
-              }`}
-              onClick={() => {
-                setShowDashboard(true)
-                setMobileMenuOpen(false)
-              }}
+        {sidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.div
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 z-50 md:hidden"
             >
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-            <Button
-              variant={!showDashboard ? "default" : "outline"}
-              size="sm"
-              className={`w-full justify-start ${!showDashboard 
-                ? "bg-gradient-to-r from-blue-500 to-emerald-500 text-white border-0" 
-                : "glass border-white/10"
-              }`}
-              onClick={() => {
-                setShowDashboard(false)
-                setMobileMenuOpen(false)
-              }}
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Chat
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-muted-foreground hover:text-foreground"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign out
-            </Button>
-          </motion.div>
+              <Sidebar
+                conversations={conversations}
+                activeConversationId={activeConversationId}
+                onNewChat={handleNewChat}
+                onSelectConversation={handleSelectConversation}
+                onDeleteConversation={handleDeleteConversation}
+                onSignOut={handleSignOut}
+                userEmail={userEmail}
+                isLoading={isLoading}
+              />
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
-      {/* Main content */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Desktop: Split view */}
-        <div className="hidden lg:flex flex-1">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex-1 border-r border-white/5 glass"
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <header className="md:hidden glass-strong border-b border-white/10 px-4 py-3 flex items-center gap-3 z-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(true)}
+            className="hover:bg-white/10"
           >
-            <ChatInterface />
-          </motion.div>
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="w-80 xl:w-96 overflow-hidden glass"
-          >
-            <DashboardPanel />
-          </motion.div>
-        </div>
+            <Menu className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-semibold gradient-text">FinTrack AI</h1>
+        </header>
 
-        {/* Mobile/Tablet: Tab view */}
-        <div className="lg:hidden flex-1 overflow-hidden glass">
-          <AnimatePresence mode="wait">
-            {showDashboard ? (
-              <motion.div
-                key="dashboard"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className="h-full"
-              >
-                <DashboardPanel />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="chat"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2 }}
-                className="h-full"
-              >
-                <ChatInterface />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </main>
+        {/* Chat View */}
+        <ChatView
+          conversationId={activeConversationId}
+          onConversationCreated={handleConversationCreated}
+        />
+      </div>
     </div>
   )
 }
