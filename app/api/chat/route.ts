@@ -81,13 +81,30 @@ MENTIONS:
 Users can mention contacts with @name syntax. When you see @name in a message, that refers to a person contact. Use the get_person_info tool to get detailed balance information about that person.
 
 EXPENSE EXAMPLES:
-- "Lunch at Starbucks, $15" → log_expense
+- "Lunch at Starbucks, $15" → log_expense (you paid)
 - "John paid for dinner, $50" → log_expense_other_paid (creates due - you owe John)
 - "Paid back John $50" → settle_due
+- "I paid for John's lunch $30" or "John owes me $30" → log_lent_money (they owe you)
+- "John paid me back $30" → receive_payment
 
 BILL EXAMPLES:
 - "Rent due on the 1st, $2000" → create_bill
 - "Netflix subscription $15 monthly" → create_bill (recurring)
+
+RESPONSE FORMAT:
+After EVERY tool call, you MUST respond with a clear confirmation message. Format:
+- Contact: [Name] (Existing/New)
+- Action: [What was done]
+- Amount: [Amount]
+- Balance: [New balance with that person]
+- Status: Updated/Created
+
+Example response after logging that Ajay owes you $60:
+"Contact: Ajay (Existing)
+Action: Recorded money lent
+Amount: $60
+New Balance: Ajay owes you $60
+Status: Updated"
 
 When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
 
@@ -154,7 +171,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
 
               return {
                 success: true,
-                message: `Logged: ${formatCurrency(amount)} on ${category}${merchant ? ` at ${merchant}` : ""}.${coaching}`,
+                message: `Action: Logged expense\nAmount: ${formatCurrency(amount)}\nCategory: ${category}${merchant ? `\nMerchant: ${merchant}` : ""}${description ? `\nDescription: ${description}` : ""}${coaching ? `\nNote: ${coaching}` : ""}\nStatus: Recorded`,
                 transaction_id: transaction.id,
               }
             } catch (err) {
@@ -203,13 +220,21 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
                 return { success: false, error: "Transaction logged but due creation failed" }
               }
 
+              const allPeople = await getPeople(userId)
+              const existingPerson = allPeople.find((p) => p.id === person.id)
+              const isNewContact = !existingPerson || existingPerson.created_at === person.created_at
+              
               await updatePersonBalance(person.id, amount)
               await createNote(userId, `${person_name} paid ${formatCurrency(amount)} - you owe`, `transaction:${transaction.id}`)
 
               const newBalance = person.running_balance + amount
               return {
                 success: true,
-                message: `Logged: ${person_name} paid ${formatCurrency(amount)}${merchant ? ` at ${merchant}` : ""}. You now owe ${person_name} ${formatCurrency(newBalance)}. Don't forget to settle up.`,
+                is_new_contact: isNewContact,
+                person_name: person.name,
+                amount,
+                new_balance: newBalance,
+                message: `Contact: ${person.name} (${isNewContact ? "New" : "Existing"})\nAction: They paid for you\nAmount: ${formatCurrency(amount)}${merchant ? ` at ${merchant}` : ""}${description ? ` for ${description}` : ""}\nNew Balance: You owe ${person.name} ${formatCurrency(newBalance)}\nStatus: ${isNewContact ? "Created" : "Updated"}`,
               }
             } catch (err) {
               console.log("[v0] log_expense_other_paid error:", err)
@@ -218,8 +243,109 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
           },
         }),
 
+        log_lent_money: tool({
+          description: "Log money the user lent to someone or paid on their behalf. Creates a due - that person now owes the user. Use when user says 'I paid for X' or 'X owes me'.",
+          inputSchema: z.object({
+            person_name: z.string().describe("Name of person who owes the user"),
+            amount: z.number().describe("Amount they owe"),
+            description: z.string().nullable().describe("What it was for"),
+          }),
+          execute: async ({ person_name, amount, description }) => {
+            try {
+              const allPeople = await getPeople(userId)
+              const existingPerson = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase())
+              const isNewContact = !existingPerson
+              
+              const person = await getOrCreatePerson(userId, person_name)
+              if (!person) {
+                return { success: false, error: "Failed to create person record" }
+              }
+
+              const transaction = await createTransaction(userId, {
+                amount,
+                category: "lent",
+                description: description || `Lent to ${person_name}`,
+                paid_by: "user",
+              })
+
+              if (!transaction) {
+                return { success: false, error: "Failed to store transaction" }
+              }
+
+              // Negative due = they owe user
+              const due = await createDue(userId, {
+                person_id: person.id,
+                transaction_id: transaction.id,
+                amount: -amount,
+              })
+
+              if (!due) {
+                return { success: false, error: "Transaction logged but due creation failed" }
+              }
+
+              await updatePersonBalance(person.id, -amount)
+              await createNote(userId, `Lent ${formatCurrency(amount)} to ${person_name}`, `transaction:${transaction.id}`)
+
+              const newBalance = (existingPerson?.running_balance || 0) - amount
+              
+              return {
+                success: true,
+                is_new_contact: isNewContact,
+                person_name: person.name,
+                amount,
+                new_balance: newBalance,
+                message: `Contact: ${person.name} (${isNewContact ? "New" : "Existing"})\nAction: Recorded money lent\nAmount: ${formatCurrency(amount)}${description ? ` for ${description}` : ""}\nNew Balance: ${person.name} owes you ${formatCurrency(Math.abs(newBalance))}\nStatus: ${isNewContact ? "Created" : "Updated"}`,
+              }
+            } catch (err) {
+              console.log("[v0] log_lent_money error:", err)
+              return { success: false, error: String(err) }
+            }
+          },
+        }),
+
+        receive_payment: tool({
+          description: "Record when someone pays the user back. Use when user says 'X paid me back' or 'received payment from X'.",
+          inputSchema: z.object({
+            person_name: z.string().describe("Name of person who paid"),
+            amount: z.number().nullable().describe("Amount received. If null, clear all they owe."),
+          }),
+          execute: async ({ person_name, amount }) => {
+            try {
+              const allPeople = await getPeople(userId)
+              const person = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase())
+
+              if (!person) {
+                return { success: false, error: `No record of ${person_name}. Check the name.` }
+              }
+
+              if (person.running_balance >= 0) {
+                return { success: false, error: `${person_name} doesn't owe you anything. Current balance: ${person.running_balance > 0 ? `You owe them ${formatCurrency(person.running_balance)}` : "You're square."}` }
+              }
+
+              const owedAmount = Math.abs(person.running_balance)
+              const receiveAmount = amount || owedAmount
+
+              await updatePersonBalance(person.id, receiveAmount)
+              await createNote(userId, `Received ${formatCurrency(receiveAmount)} from ${person_name}`, `person:${person.id}`)
+
+              const newBalance = person.running_balance + receiveAmount
+
+              return {
+                success: true,
+                person_name: person.name,
+                amount_received: receiveAmount,
+                new_balance: newBalance,
+                message: `Contact: ${person.name} (Existing)\nAction: Received payment\nAmount: ${formatCurrency(receiveAmount)}\nNew Balance: ${newBalance === 0 ? "You're square" : newBalance < 0 ? `${person.name} still owes you ${formatCurrency(Math.abs(newBalance))}` : `You now owe ${person.name} ${formatCurrency(newBalance)}`}\nStatus: Updated`,
+              }
+            } catch (err) {
+              console.log("[v0] receive_payment error:", err)
+              return { success: false, error: String(err) }
+            }
+          },
+        }),
+
         settle_due: tool({
-          description: "Settle a due/debt with someone. Use when user says they paid back someone.",
+          description: "Settle a due/debt - when USER pays back someone THEY owe. Use when user says they paid back someone.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of person being paid back"),
             amount: z.number().nullable().describe("Amount being settled. If null, settle all dues."),
@@ -252,7 +378,10 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
               const remaining = person.running_balance - settleAmount
               return {
                 success: true,
-                message: `Settled ${formatCurrency(settleAmount)} with ${person_name}. ${remaining !== 0 ? `Remaining balance: ${formatCurrency(Math.abs(remaining))}.` : "You're square."} Good job clearing dues.`,
+                person_name: person.name,
+                amount_settled: settleAmount,
+                new_balance: remaining,
+                message: `Contact: ${person.name} (Existing)\nAction: You paid them back\nAmount: ${formatCurrency(settleAmount)}\nNew Balance: ${remaining === 0 ? "You're square!" : `You still owe ${person.name} ${formatCurrency(Math.abs(remaining))}`}\nStatus: Updated`,
               }
             } catch (err) {
               console.log("[v0] settle_due error:", err)
