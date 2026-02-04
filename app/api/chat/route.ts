@@ -36,6 +36,13 @@ export async function POST(request: Request) {
     const { messages, conversationId } = body
     const userId = user.id
 
+    // Check for Groq API key
+    if (!process.env.GROQ_API_KEY) {
+      console.log("[v0] GROQ_API_KEY is not set")
+      return Response.json({ error: "GROQ_API_KEY is not configured" }, { status: 500 })
+    }
+    console.log("[v0] GROQ_API_KEY is set, length:", process.env.GROQ_API_KEY.length)
+
     // Get dashboard data for context - wrapped in try-catch for resilience
     let dashboardData = {
       totalSpentThisMonth: 0,
@@ -483,7 +490,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     })
 
     console.log("[v0] Returning stream response")
-    return result.toUIMessageStreamResponse()
+    return result.toDataStreamResponse()
   } catch (error) {
     console.log("[v0] API Error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)

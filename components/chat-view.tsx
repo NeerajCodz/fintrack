@@ -3,7 +3,6 @@
 import React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -124,26 +123,15 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
     fetchPeople()
   }, [])
 
-  // Use the AI SDK useChat hook
-  const { messages, status, sendMessage, setMessages, error } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      prepareSendMessagesRequest: ({ messages: chatMessages }) => ({
-        body: {
-          messages: chatMessages.map((m) => ({
-            role: m.role,
-            content: getMessageText(m),
-          })),
-          conversationId: conversationIdRef.current,
-        },
-      }),
-    }),
+  // Use the AI SDK useChat hook with simple fetch-based approach
+  const { messages, isLoading: chatLoading, append, setMessages, error } = useChat({
+    api: "/api/chat",
     onError: (err) => {
       console.log("[v0] useChat error:", err)
     },
   })
 
-  const isLoading = status === "streaming" || status === "submitted"
+  const isLoading = chatLoading
 
   useEffect(() => {
     setCurrentConversationId(conversationId)
@@ -302,7 +290,10 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       }
     }
 
-    sendMessage({ text: messageText })
+    append(
+      { role: "user", content: messageText },
+      { body: { conversationId: convId } }
+    )
   }
 
   function handleQuickPrompt(prompt: string) {
