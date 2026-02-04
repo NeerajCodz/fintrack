@@ -89,19 +89,20 @@ BILL EXAMPLES:
 - "Rent due on the 1st, $2000" → create_bill
 - "Netflix subscription $15 monthly" → create_bill (recurring)
 
-RESPONSE FORMAT - ALWAYS RESPOND WITH CLEAR, ACTIONABLE TEXT:
+CRITICAL - RESPONSE REQUIREMENT:
+**YOU MUST ALWAYS RESPOND WITH TEXT AFTER EVERY TOOL CALL.**
+**NEVER RETURN ONLY A TOOL CALL WITHOUT A FOLLOW-UP TEXT MESSAGE.**
+**THE USER CANNOT SEE TOOL RESULTS - YOU MUST TELL THEM WHAT HAPPENED.**
 
-You MUST always provide a text response after every action. NEVER stay silent.
+After calling ANY tool, you MUST immediately write a message to the user like:
 
-Format your responses like this:
+"Updated! [Name] - New balance: [You owe them $X / They owe you $X / All settled]"
 
----
-CONTACT: [Name] - [Existing/New Contact]
-ACTION: [What you did]
-AMOUNT: [Amount involved]
-RESULT: [Final balance - "You owe X $Y" OR "X owes you $Y" OR "All settled"]
-STATUS: SUCCESS / FAILED
----
+Keep responses SHORT and CLEAR:
+- "Done! Ajay owes you $60 now."
+- "Recorded! You owe Mike $25 for lunch."
+- "Settled! You and John are square."
+- "Added contact: Sarah. She owes you $100."
 
 EXAMPLE 1 - "Ajay owes me 60 for dinner":
 ---
@@ -560,51 +561,17 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           },
         }),
 
-        get_person_info: tool({
-          description: "Get detailed info about a specific person/contact. Use when user mentions @name or asks about someone specific.",
-          inputSchema: z.object({
-            person_name: z.string().describe("Name of the person to look up (without the @ symbol)"),
-          }),
-          execute: async ({ person_name }) => {
-            try {
-              const allPeople = await getPeople(userId)
-              const person = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase().replace("@", ""))
-
-              if (!person) {
-                return { success: false, error: `No contact found with name "${person_name}". You can add them by logging an expense involving them.` }
-              }
-
-              const pendingDues = await getPendingDues(userId)
-              const duesWithPerson = pendingDues.filter((d) => d.person_id === person.id)
-
-              let balanceDescription = ""
-              if (person.running_balance > 0) {
-                balanceDescription = `You owe ${person.name} ${formatCurrency(person.running_balance)}`
-              } else if (person.running_balance < 0) {
-                balanceDescription = `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`
-              } else {
-                balanceDescription = `You're all square with ${person.name}`
-              }
-
-              return {
-                success: true,
-                person: {
-                  name: person.name,
-                  relationship: person.relationship || "Not set",
-                  running_balance: person.running_balance,
-                  balance_description: balanceDescription,
-                  pending_dues_count: duesWithPerson.length,
-                  created_at: person.created_at,
-                },
-              }
-            } catch (err) {
-              console.log("[v0] get_person_info error:", err)
-              return { success: false, error: String(err) }
-            }
-          },
-        }),
+        },
+      maxSteps: 5,
+      onStepFinish: async ({ stepType, toolResults, text }) => {
+        console.log("[v0] Step finished:", stepType)
+        if (toolResults && toolResults.length > 0) {
+          console.log("[v0] Tool results:", JSON.stringify(toolResults).substring(0, 500))
+        }
+        if (text) {
+          console.log("[v0] Text generated:", text.substring(0, 200))
+        }
       },
-      maxSteps: 3,
       onFinish: async ({ response }) => {
         console.log("[v0] onFinish called, response messages:", response.messages?.length)
         // Save the conversation if we have a conversationId

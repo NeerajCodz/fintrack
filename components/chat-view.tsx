@@ -47,30 +47,59 @@ function formatCurrency(amount: number): string {
 
 // Helper to extract text from UIMessage parts or content
 function getMessageText(message: { 
-  parts?: Array<{ type: string; text?: string; result?: unknown }>
-  content?: string 
+  parts?: Array<{ type: string; text?: string; result?: unknown; output?: unknown; toolName?: string; state?: string }>
+  content?: string
+  role?: string
 }): string {
+  console.log("[v0] Processing message role:", message.role, "parts count:", message.parts?.length)
+  
   if (message.parts && Array.isArray(message.parts)) {
     const textParts: string[] = []
     
     for (const p of message.parts) {
-      if (p.type === "text" && typeof p.text === "string") {
+      console.log("[v0] Part:", p.type, "state:", (p as { state?: string }).state)
+      
+      // Handle text parts
+      if (p.type === "text" && typeof p.text === "string" && p.text.trim()) {
         textParts.push(p.text)
       }
-      // Also handle tool-result parts that might contain the response message
-      if (p.type === "tool-result" && p.result && typeof p.result === "object") {
-        const result = p.result as { message?: string; success?: boolean }
-        if (result.message) {
+      
+      // Handle tool-invocation with output-available state (tool has finished)
+      if (p.type === "tool-invocation") {
+        const invocation = p as { state?: string; result?: unknown; output?: unknown }
+        console.log("[v0] Tool invocation state:", invocation.state)
+        
+        if (invocation.state === "output-available") {
+          const result = (invocation.result || invocation.output) as { message?: string; success?: boolean; error?: string }
+          console.log("[v0] Tool output:", JSON.stringify(result).substring(0, 300))
+          if (result?.message) {
+            textParts.push(result.message)
+          } else if (result?.error) {
+            textParts.push(`Error: ${result.error}`)
+          } else if (result?.success) {
+            textParts.push("Action completed successfully.")
+          }
+        }
+      }
+      
+      // Handle tool-result / tool-output parts (alternate format)
+      if ((p.type === "tool-result" || p.type === "tool-output")) {
+        const result = (p.result || p.output) as { message?: string; success?: boolean; error?: string }
+        if (result?.message) {
           textParts.push(result.message)
+        } else if (result?.error) {
+          textParts.push(`Error: ${result.error}`)
         }
       }
     }
     
-    if (textParts.length > 0) return textParts.join("\n")
+    if (textParts.length > 0) return textParts.join("\n\n")
   }
-  if (typeof message.content === "string") {
+  
+  if (typeof message.content === "string" && message.content.trim()) {
     return message.content
   }
+  
   return ""
 }
 
@@ -386,7 +415,15 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                         }`}
                       >
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {content ? renderMessageWithMentions(content) : (isLoading && message.role === "assistant" ? "Thinking..." : "")}
+                          {content ? (
+                            renderMessageWithMentions(content)
+                          ) : message.role === "assistant" ? (
+                            isLoading ? (
+                              <span className="text-muted-foreground">Processing your request...</span>
+                            ) : (
+                              <span className="text-muted-foreground">Action completed. Check your dashboard for updates.</span>
+                            )
+                          ) : null}
                         </div>
                       </div>
                     </div>
