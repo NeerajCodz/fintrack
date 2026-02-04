@@ -9,6 +9,7 @@ import {
   LogOut,
   Wallet,
   Sparkles,
+  Users,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -25,6 +26,7 @@ interface SidebarProps {
   onNewChat: () => void
   onSelectConversation: (id: string) => void
   onDeleteConversation: (id: string) => void
+  onOpenContacts: () => void
   onSignOut: () => void
   userEmail: string
   isLoading: boolean
@@ -36,6 +38,7 @@ export function Sidebar({
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onOpenContacts,
   onSignOut,
   userEmail,
   isLoading,
@@ -85,7 +88,7 @@ export function Sidebar({
       </div>
 
       {/* New Chat Button */}
-      <div className="p-3">
+      <div className="p-3 space-y-2">
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Button
             onClick={onNewChat}
@@ -93,6 +96,16 @@ export function Sidebar({
           >
             <Plus className="h-4 w-4" />
             New Chat
+          </Button>
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={onOpenContacts}
+            variant="ghost"
+            className="w-full justify-start gap-2 hover:bg-purple-500/10 text-muted-foreground hover:text-purple-300"
+          >
+            <Users className="h-4 w-4" />
+            Contacts
           </Button>
         </motion.div>
       </div>

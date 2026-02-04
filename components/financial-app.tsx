@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { AnimatedBackground } from "@/components/animated-background"
 import { ChatView } from "@/components/chat-view"
 import { Sidebar } from "@/components/sidebar"
+import { ContactsManager } from "@/components/contacts-manager"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -25,6 +26,7 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [contactsOpen, setContactsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -90,6 +92,7 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
+          onOpenContacts={() => setContactsOpen(true)}
           onSignOut={handleSignOut}
           userEmail={userEmail}
           isLoading={isLoading}
@@ -150,6 +153,12 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
           onConversationCreated={handleConversationCreated}
         />
       </div>
+
+      {/* Contacts Manager Modal */}
+      <ContactsManager
+        isOpen={contactsOpen}
+        onClose={() => setContactsOpen(false)}
+      />
     </div>
   )
 }

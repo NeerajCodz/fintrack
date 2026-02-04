@@ -70,6 +70,9 @@ YOUR BEHAVIOR:
 5. If something involves money, use the tools to store it in the database
 6. Give short, direct responses. No motivational fluff.
 
+MENTIONS:
+Users can mention contacts with @name syntax. When you see @name in a message, that refers to a person contact. Use the get_person_info tool to get detailed balance information about that person.
+
 EXPENSE EXAMPLES:
 - "Lunch at Starbucks, $15" → log_expense
 - "John paid for dinner, $50" → log_expense_other_paid (creates due - you owe John)
@@ -376,6 +379,51 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
               success: true,
               you_owe: dashboard.outstandingDues.youOwe,
               owed_to_you: dashboard.outstandingDues.owedToYou,
+            }
+          },
+        }),
+
+        get_person_info: tool({
+          description:
+            "Get detailed info about a specific person/contact. Use when user mentions @name or asks about someone specific.",
+          inputSchema: z.object({
+            person_name: z.string().describe("Name of the person to look up (without the @ symbol)"),
+          }),
+          execute: async ({ person_name }) => {
+            const allPeople = await getPeople(userId)
+            const person = allPeople.find(
+              (p) => p.name.toLowerCase() === person_name.toLowerCase().replace("@", "")
+            )
+
+            if (!person) {
+              return {
+                success: false,
+                error: `No contact found with name "${person_name}". You can add them by logging an expense involving them.`,
+              }
+            }
+
+            const pendingDues = await getPendingDues(userId)
+            const duesWithPerson = pendingDues.filter((d) => d.person_id === person.id)
+
+            let balanceDescription = ""
+            if (person.running_balance > 0) {
+              balanceDescription = `You owe ${person.name} ${formatCurrency(person.running_balance)}`
+            } else if (person.running_balance < 0) {
+              balanceDescription = `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`
+            } else {
+              balanceDescription = `You're all square with ${person.name}`
+            }
+
+            return {
+              success: true,
+              person: {
+                name: person.name,
+                relationship: person.relationship || "Not set",
+                running_balance: person.running_balance,
+                balance_description: balanceDescription,
+                pending_dues_count: duesWithPerson.length,
+                created_at: person.created_at,
+              },
             }
           },
         }),

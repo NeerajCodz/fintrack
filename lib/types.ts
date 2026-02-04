@@ -2,9 +2,13 @@ export interface Person {
   id: string
   user_id: string
   name: string
+  email: string | null
+  phone: string | null
   relationship: string | null
+  notes: string | null
   running_balance: number
   created_at: string
+  updated_at: string
 }
 
 export interface Transaction {

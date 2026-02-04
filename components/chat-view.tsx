@@ -16,8 +16,10 @@ import {
   Receipt,
   AlertCircle,
   Loader2,
+  AtSign,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import type { Person } from "@/lib/types"
 
 interface ChatViewProps {
   conversationId: string | null
@@ -59,16 +61,68 @@ function getMessageText(message: {
   return ""
 }
 
+// Render message with @mentions highlighted
+function renderMessageWithMentions(content: string): React.ReactNode {
+  const mentionRegex = /@(\w+(?:\s+\w+)?)/g
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+    parts.push(
+      <span
+        key={match.index}
+        className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 font-medium"
+      >
+        @{match[1]}
+      </span>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : content
+}
+
 export function ChatView({ conversationId, onConversationCreated }: ChatViewProps) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId)
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const conversationIdRef = useRef<string | null>(currentConversationId)
+  
+  // @mention state
+  const [people, setPeople] = useState<Person[]>([])
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionSearch, setMentionSearch] = useState("")
+  const [mentionIndex, setMentionIndex] = useState(0)
+  const [cursorPosition, setCursorPosition] = useState(0)
 
   useEffect(() => {
     conversationIdRef.current = currentConversationId
   }, [currentConversationId])
+
+  // Fetch people for @mentions
+  useEffect(() => {
+    async function fetchPeople() {
+      try {
+        const res = await fetch("/api/people")
+        if (res.ok) {
+          const data = await res.json()
+          setPeople(data.people || [])
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    fetchPeople()
+  }, [])
 
   // Use the AI SDK useChat hook
   const { messages, status, sendMessage, setMessages, error } = useChat({
@@ -90,11 +144,6 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
   })
 
   const isLoading = status === "streaming" || status === "submitted"
-
-  // Debug logging
-  useEffect(() => {
-    console.log("[v0] Status:", status, "Messages:", messages.length, "Error:", error?.message)
-  }, [status, messages, error])
 
   useEffect(() => {
     setCurrentConversationId(conversationId)
@@ -145,12 +194,91 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
     }
   }, [input])
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Handle @mention detection
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    const position = e.target.selectionStart || 0
+    setInput(value)
+    setCursorPosition(position)
+
+    // Check for @ trigger
+    const textBeforeCursor = value.slice(0, position)
+    const atMatch = textBeforeCursor.match(/@(\w*)$/)
+
+    if (atMatch) {
+      setShowMentions(true)
+      setMentionSearch(atMatch[1].toLowerCase())
+      setMentionIndex(0)
+    } else {
+      setShowMentions(false)
+      setMentionSearch("")
+    }
+  }
+
+  // Filter people based on search
+  const filteredPeople = people.filter((p) =>
+    p.name.toLowerCase().includes(mentionSearch)
+  )
+
+  // Insert mention
+  const insertMention = (person: Person) => {
+    const textBeforeCursor = input.slice(0, cursorPosition)
+    const textAfterCursor = input.slice(cursorPosition)
+    
+    // Find the @ position
+    const atMatch = textBeforeCursor.match(/@(\w*)$/)
+    if (atMatch) {
+      const atPosition = textBeforeCursor.lastIndexOf("@")
+      const newText = 
+        input.slice(0, atPosition) + 
+        `@${person.name} ` + 
+        textAfterCursor
+      
+      setInput(newText)
+      setShowMentions(false)
+      setMentionSearch("")
+      
+      // Focus back on textarea
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          const newPosition = atPosition + person.name.length + 2
+          textareaRef.current.setSelectionRange(newPosition, newPosition)
+        }
+      }, 0)
+    }
+  }
+
+  // Handle keyboard navigation in mentions
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentions && filteredPeople.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setMentionIndex((prev) => (prev + 1) % filteredPeople.length)
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setMentionIndex((prev) => (prev - 1 + filteredPeople.length) % filteredPeople.length)
+      } else if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault()
+        insertMention(filteredPeople[mentionIndex])
+        return
+      } else if (e.key === "Escape") {
+        e.preventDefault()
+        setShowMentions(false)
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent | React.KeyboardEvent) {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
     const messageText = input.trim()
     setInput("")
+    setShowMentions(false)
 
     let convId = currentConversationId
 
@@ -174,8 +302,6 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       }
     }
 
-    // Send message
-    console.log("[v0] Sending message:", messageText)
     sendMessage({ text: messageText })
   }
 
@@ -191,7 +317,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         {showWelcome ? (
-          <WelcomeScreen onQuickPrompt={handleQuickPrompt} />
+          <WelcomeScreen onQuickPrompt={handleQuickPrompt} people={people} />
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
             <AnimatePresence mode="popLayout">
@@ -228,7 +354,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                         }`}
                       >
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {content || (isLoading && message.role === "assistant" ? "Thinking..." : "")}
+                          {content ? renderMessageWithMentions(content) : (isLoading && message.role === "assistant" ? "Thinking..." : "")}
                         </div>
                       </div>
                     </div>
@@ -284,44 +410,92 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       {/* Input Area */}
       <div className="border-t border-white/5 p-4">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-          <div className="relative glass rounded-2xl border border-white/10 focus-within:border-blue-500/50 transition-colors">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit(e)
-                }
-              }}
-              placeholder="Log an expense, bill, or ask for your dashboard..."
-              disabled={isLoading}
-              className="min-h-[56px] max-h-[200px] resize-none bg-transparent border-0 focus-visible:ring-0 pr-14 py-4 text-sm"
-              rows={1}
-            />
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="absolute right-2 bottom-2"
-            >
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isLoading || !input.trim()}
-                className="h-10 w-10 rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 transition-all duration-300 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+          <div className="relative">
+            {/* @mention dropdown */}
+            <AnimatePresence>
+              {showMentions && filteredPeople.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute bottom-full mb-2 left-0 right-0 glass rounded-xl border border-white/10 overflow-hidden max-h-48 overflow-y-auto z-20"
+                >
+                  <div className="p-1">
+                    <div className="px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                      <AtSign className="h-3 w-3" />
+                      Mention a contact
+                    </div>
+                    {filteredPeople.slice(0, 6).map((person, index) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => insertMention(person)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                          index === mentionIndex
+                            ? "bg-purple-500/20 text-purple-300"
+                            : "hover:bg-white/5"
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
+                          {person.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium capitalize truncate">{person.name}</p>
+                          {person.relationship && (
+                            <p className="text-xs text-muted-foreground capitalize">{person.relationship}</p>
+                          )}
+                        </div>
+                        {person.running_balance !== 0 && (
+                          <span
+                            className={`text-xs font-medium ${
+                              person.running_balance > 0 ? "text-red-400" : "text-green-400"
+                            }`}
+                          >
+                            {person.running_balance > 0 ? "You owe" : "Owes you"}{" "}
+                            {formatCurrency(Math.abs(person.running_balance))}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="glass rounded-2xl border border-white/10 focus-within:border-blue-500/50 transition-colors">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Log expenses, bills, or use @name to mention contacts..."
+                disabled={isLoading}
+                className="min-h-[56px] max-h-[200px] resize-none bg-transparent border-0 focus-visible:ring-0 pr-14 py-4 text-sm"
+                rows={1}
+              />
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="absolute right-2 bottom-2"
               >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 text-white animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 text-white" />
-                )}
-                <span className="sr-only">Send message</span>
-              </Button>
-            </motion.div>
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={isLoading || !input.trim()}
+                  className="h-10 w-10 rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 transition-all duration-300 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 text-white animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 text-white" />
+                  )}
+                  <span className="sr-only">Send message</span>
+                </Button>
+              </motion.div>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            FinTrack AI stores all data in your secure database. Nothing is forgotten.
+            Use <span className="text-purple-400 font-medium">@name</span> to mention contacts. Press Enter to send.
           </p>
         </form>
       </div>
@@ -329,7 +503,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
   )
 }
 
-function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => void }) {
+function WelcomeScreen({ onQuickPrompt, people }: { onQuickPrompt: (prompt: string) => void; people: Person[] }) {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -353,9 +527,10 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
   const totalYouOwe = stats?.outstandingDues.youOwe.reduce((sum, d) => sum + d.amount, 0) || 0
   const totalOwedToYou = stats?.outstandingDues.owedToYou.reduce((sum, d) => sum + d.amount, 0) || 0
 
+  // Generate quick prompts with people names if available
   const quickPrompts = [
     { label: "Log expense", prompt: "I spent $25 on lunch at Chipotle" },
-    { label: "Split bill", prompt: "John paid for dinner, $80 total" },
+    { label: "Split bill", prompt: people.length > 0 ? `@${people[0].name} paid for dinner, $80 total` : "John paid for dinner, $80 total" },
     { label: "Show dashboard", prompt: "Show me my financial dashboard" },
     { label: "Add bill", prompt: "Rent is due on the 1st, $1500 monthly" },
   ]
@@ -462,6 +637,42 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
             )}
           </div>
         </motion.div>
+
+        {/* People with balances */}
+        {people.filter((p) => p.running_balance !== 0).length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.55 }}
+            className="glass rounded-xl p-4 border border-purple-500/30 mb-6"
+          >
+            <div className="flex items-center gap-2 text-purple-400 mb-3">
+              <AtSign className="h-4 w-4" />
+              <span className="text-sm font-medium">People with balances</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {people
+                .filter((p) => p.running_balance !== 0)
+                .slice(0, 5)
+                .map((person) => (
+                  <button
+                    key={person.id}
+                    onClick={() => onQuickPrompt(`Show me my balance with @${person.name}`)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
+                  >
+                    <span className="text-sm capitalize">@{person.name}</span>
+                    <span
+                      className={`text-xs font-medium ${
+                        person.running_balance > 0 ? "text-red-400" : "text-green-400"
+                      }`}
+                    >
+                      {formatCurrency(Math.abs(person.running_balance))}
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Upcoming Bills */}
         {stats && stats.upcomingBills.length > 0 && (
