@@ -18,6 +18,55 @@ import {
   getDashboardData,
   createNote,
 } from "@/lib/db"
+import type { AIInsights } from "@/lib/types"
+
+// AI-powered insight generation
+function generateAIInsights(
+  type: string,
+  amount?: number,
+  category?: string,
+  context?: Record<string, unknown>
+): AIInsights {
+  const insights: AIInsights = {
+    sentiment: "neutral",
+    category: category || "general",
+    urgency: "low",
+  }
+
+  // Determine sentiment and urgency based on transaction type and amount
+  if (type === "expense_logged") {
+    insights.sentiment = amount && amount > 1000 ? "concerned" : "positive"
+    insights.urgency = amount && amount > 5000 ? "high" : "low"
+    
+    if (amount && amount > 2000) {
+      insights.suggestion = "Large expense. Track carefully."
+    }
+    
+    if (category === "food" && amount && amount > 500) {
+      insights.suggestion = "High food spending. Consider meal planning."
+    }
+  }
+
+  if (type === "due_created" || context?.due) {
+    insights.sentiment = "neutral"
+    insights.urgency = "medium"
+    insights.suggestion = "Remember to settle this soon."
+  }
+
+  if (type === "bill_created") {
+    insights.sentiment = "informative"
+    insights.urgency = "medium"
+    insights.suggestion = "Bill tracked. Don't miss the due date."
+  }
+
+  if (type === "settlement") {
+    insights.sentiment = "positive"
+    insights.urgency = "low"
+    insights.suggestion = "Good job clearing dues!"
+  }
+
+  return insights
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -177,12 +226,15 @@ async function handleOtherPersonPaid(
     `transaction:${transaction.id}`
   )
 
+  const aiInsights = generateAIInsights("expense_logged", amount, expenseData.category, { due: true })
+
   return Response.json({
     type: "expense_logged",
     data: { transaction, due, person },
     response: `Logged: ${personName} paid ${formatCurrency(amount)}${
       expenseData.merchant ? ` at ${expenseData.merchant}` : ""
     }. You now owe ${personName} ${formatCurrency(person.running_balance + amount)}.`,
+    aiInsights,
   })
 }
 
@@ -214,12 +266,15 @@ async function handleUserPaid(
     `transaction:${transaction.id}`
   )
 
+  const aiInsights = generateAIInsights("expense_logged", amount, expenseData.category)
+
   return Response.json({
     type: "expense_logged",
     data: { transaction },
     response: `Logged: ${formatCurrency(amount)} spent${
       expenseData.category ? ` on ${expenseData.category}` : ""
     }${expenseData.merchant ? ` at ${expenseData.merchant}` : ""}.`,
+    aiInsights,
   })
 }
 
@@ -280,6 +335,8 @@ async function handleSettlement(
     `person:${person.id}`
   )
 
+  const aiInsights = generateAIInsights("settlement", settleAmount)
+
   return Response.json({
     type: "settlement",
     response: `Settled ${formatCurrency(settleAmount)} with ${personName}. ${
@@ -287,6 +344,7 @@ async function handleSettlement(
         ? `Remaining balance: ${formatCurrency(Math.abs(person.running_balance - settleAmount))}`
         : "You're square."
     }`,
+    aiInsights,
   })
 }
 
@@ -367,12 +425,15 @@ async function handleBill(
     `bill:${bill.id}`
   )
 
+  const aiInsights = generateAIInsights("bill_created", billData.amount, "bill")
+
   return Response.json({
     type: "bill_created",
     data: { bill },
     response: `Bill added: ${billData.name} for ${formatCurrency(billData.amount)}, due ${billData.due_date}.${
       billData.recurring ? ` Recurring ${billData.recurrence_pattern || "monthly"}.` : ""
     } I'll remind you.`,
+    aiInsights,
   })
 }
 

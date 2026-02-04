@@ -1,15 +1,23 @@
 import React from "react"
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import type { Metadata, Viewport } from "next"
+import { Inter } from "next/font/google"
 
-import './globals.css'
+import "./globals.css"
 
-const _geist = Geist({ subsets: ['latin'] })
-const _geistMono = Geist_Mono({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ["latin"],
+  variable: "--font-inter",
+})
 
 export const metadata: Metadata = {
-  title: 'Financial Tracker',
-  description: 'Track expenses, dues, and bills with a blunt AI coach',
+  title: "FinTrack - AI Financial Tracker",
+  description: "Track expenses, dues, and bills with an AI-powered financial coach",
+}
+
+export const viewport: Viewport = {
+  themeColor: "#0a0f1a",
+  width: "device-width",
+  initialScale: 1,
 }
 
 export default function RootLayout({
@@ -18,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="en" className="dark">
+      <body className={`${inter.variable} font-sans antialiased`}>{children}</body>
     </html>
   )
 }

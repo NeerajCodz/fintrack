@@ -62,11 +62,19 @@ export interface Note {
   created_at: string
 }
 
+export interface AIInsights {
+  sentiment: string
+  category: string
+  urgency: string
+  suggestion?: string
+}
+
 export interface Message {
   id: string
   role: "user" | "assistant"
   content: string
   timestamp: Date
+  aiInsights?: AIInsights
 }
 
 export interface ParsedExpense {
