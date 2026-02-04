@@ -1,4 +1,4 @@
-import { streamText, tool } from "ai"
+import { streamText, tool, convertToModelMessages } from "ai"
 import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 
@@ -93,15 +93,16 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
 
     console.log("[v0] Calling streamText")
     console.log("[v0] Messages count:", messages?.length)
-    console.log("[v0] Messages:", JSON.stringify(messages).substring(0, 300))
+    console.log("[v0] Messages:", JSON.stringify(messages).substring(0, 500))
+    
+    // Convert UIMessage format (with parts array) to ModelMessage format (with content)
+    const modelMessages = await convertToModelMessages(messages)
+    console.log("[v0] Converted messages:", JSON.stringify(modelMessages).substring(0, 500))
     
     const result = streamText({
       model: groq("llama-3.3-70b-versatile"),
       system: systemPrompt,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
+      messages: modelMessages,
       tools: {
         log_expense: tool({
           description:
