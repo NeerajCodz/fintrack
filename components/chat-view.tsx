@@ -41,13 +41,22 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
-// Helper to extract text from UIMessage parts
-function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
-  if (!message.parts || !Array.isArray(message.parts)) return ""
-  return message.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-    .map((p) => p.text)
-    .join("")
+// Helper to extract text from UIMessage parts or content
+function getMessageText(message: { 
+  parts?: Array<{ type: string; text?: string }>
+  content?: string 
+}): string {
+  if (message.parts && Array.isArray(message.parts)) {
+    const text = message.parts
+      .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
+      .map((p) => p.text)
+      .join("")
+    if (text) return text
+  }
+  if (typeof message.content === "string") {
+    return message.content
+  }
+  return ""
 }
 
 export function ChatView({ conversationId, onConversationCreated }: ChatViewProps) {
@@ -55,33 +64,48 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const conversationIdRef = useRef<string | null>(currentConversationId)
 
-  // Use the AI SDK useChat hook with DefaultChatTransport
-  const { messages, status, sendMessage, setMessages } = useChat({
+  useEffect(() => {
+    conversationIdRef.current = currentConversationId
+  }, [currentConversationId])
+
+  // Use the AI SDK useChat hook
+  const { messages, status, sendMessage, setMessages, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       prepareSendMessagesRequest: ({ messages: chatMessages }) => ({
         body: {
           messages: chatMessages.map((m) => ({
             role: m.role,
-            content: getMessageText(m) || "",
+            content: getMessageText(m),
           })),
-          conversationId: currentConversationId,
+          conversationId: conversationIdRef.current,
         },
       }),
     }),
+    onError: (err) => {
+      console.log("[v0] useChat error:", err)
+    },
   })
 
   const isLoading = status === "streaming" || status === "submitted"
 
+  // Debug logging
+  useEffect(() => {
+    console.log("[v0] Status:", status, "Messages:", messages.length, "Error:", error?.message)
+  }, [status, messages, error])
+
   useEffect(() => {
     setCurrentConversationId(conversationId)
+    conversationIdRef.current = conversationId
   }, [conversationId])
 
   useEffect(() => {
     if (conversationId === null) {
       setMessages([])
       setCurrentConversationId(null)
+      conversationIdRef.current = null
     } else if (conversationId !== currentConversationId) {
       loadConversationMessages(conversationId)
     }
@@ -92,7 +116,6 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       const response = await fetch(`/api/conversations/${convId}/messages`)
       if (response.ok) {
         const data = await response.json()
-        // Convert stored messages to UIMessage format
         const uiMessages = (data.messages || []).map((m: { id: string; role: string; content: string }) => ({
           id: m.id,
           role: m.role as "user" | "assistant",
@@ -100,9 +123,10 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
         }))
         setMessages(uiMessages)
         setCurrentConversationId(convId)
+        conversationIdRef.current = convId
       }
     } catch {
-      // Silently fail - conversation might not exist
+      // Silently fail
     }
   }, [setMessages])
 
@@ -130,7 +154,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 
     let convId = currentConversationId
 
-    // Create conversation if new
+    // Create conversation if needed
     if (!convId) {
       try {
         const createRes = await fetch("/api/conversations", {
@@ -141,15 +165,17 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
         if (createRes.ok) {
           const data = await createRes.json()
           convId = data.conversation.id
+          conversationIdRef.current = convId
           setCurrentConversationId(convId)
           onConversationCreated(data.conversation.id, data.conversation.title)
         }
       } catch {
-        // Continue without conversation ID
+        // Continue anyway
       }
     }
 
-    // Send message using useChat
+    // Send message
+    console.log("[v0] Sending message:", messageText)
     sendMessage({ text: messageText })
   }
 
@@ -177,9 +203,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
-                    className={`flex gap-4 ${
-                      message.role === "user" ? "flex-row-reverse" : ""
-                    }`}
+                    className={`flex gap-4 ${message.role === "user" ? "flex-row-reverse" : ""}`}
                   >
                     <div
                       className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${
@@ -195,11 +219,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                       )}
                     </div>
 
-                    <div
-                      className={`flex-1 max-w-[80%] ${
-                        message.role === "user" ? "text-right" : ""
-                      }`}
-                    >
+                    <div className={`flex-1 max-w-[80%] ${message.role === "user" ? "text-right" : ""}`}>
                       <div
                         className={`inline-block rounded-2xl px-4 py-3 ${
                           message.role === "user"
@@ -208,7 +228,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                         }`}
                       >
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {content || (isLoading && message.role === "assistant" ? "..." : "")}
+                          {content || (isLoading && message.role === "assistant" ? "Thinking..." : "")}
                         </div>
                       </div>
                     </div>
@@ -217,7 +237,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
               })}
             </AnimatePresence>
 
-            {/* Loading indicator when waiting for first response */}
+            {/* Loading indicator */}
             {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -247,6 +267,13 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                   </div>
                 </div>
               </motion.div>
+            )}
+
+            {/* Error display */}
+            {error && (
+              <div className="glass rounded-xl p-4 border border-red-500/30 text-red-400">
+                <p className="text-sm">Error: {error.message}</p>
+              </div>
             )}
 
             <div ref={messagesEndRef} />
@@ -315,7 +342,7 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
           setStats(data.data)
         }
       } catch {
-        // Stats fetch failed - show defaults
+        // Stats fetch failed
       } finally {
         setLoading(false)
       }
@@ -341,7 +368,6 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
         transition={{ duration: 0.5 }}
         className="text-center max-w-2xl w-full"
       >
-        {/* Logo */}
         <motion.div
           initial={{ scale: 0.8 }}
           animate={{ scale: 1 }}
@@ -376,7 +402,6 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
           transition={{ delay: 0.5 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
         >
-          {/* Monthly Spending */}
           <div className="glass rounded-xl p-4 border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -393,7 +418,6 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
             )}
           </div>
 
-          {/* Top Category */}
           <div className="glass rounded-xl p-4 border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
@@ -410,7 +434,6 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
             )}
           </div>
 
-          {/* You Owe */}
           <div className="glass rounded-xl p-4 border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
@@ -421,13 +444,10 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
             {loading ? (
               <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
             ) : (
-              <p className="text-lg font-bold text-red-400">
-                {formatCurrency(totalYouOwe)}
-              </p>
+              <p className="text-lg font-bold text-red-400">{formatCurrency(totalYouOwe)}</p>
             )}
           </div>
 
-          {/* Owed To You */}
           <div className="glass rounded-xl p-4 border border-white/10">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
@@ -438,14 +458,12 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
             {loading ? (
               <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
             ) : (
-              <p className="text-lg font-bold text-green-400">
-                {formatCurrency(totalOwedToYou)}
-              </p>
+              <p className="text-lg font-bold text-green-400">{formatCurrency(totalOwedToYou)}</p>
             )}
           </div>
         </motion.div>
 
-        {/* Upcoming Bills Alert */}
+        {/* Upcoming Bills */}
         {stats && stats.upcomingBills.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}

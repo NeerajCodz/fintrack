@@ -76,6 +76,10 @@ BILL EXAMPLES:
 
 When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
 
+    console.log("[v0] Calling streamText")
+    console.log("[v0] Messages count:", messages?.length)
+    console.log("[v0] Messages:", JSON.stringify(messages).substring(0, 300))
+    
     const result = streamText({
       model: "openai/gpt-4o-mini",
       system: systemPrompt,
@@ -373,6 +377,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
       },
       maxSteps: 5,
       onFinish: async ({ response }) => {
+        console.log("[v0] onFinish called, response messages:", response.messages?.length)
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
@@ -424,8 +429,10 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
       },
     })
 
+    console.log("[v0] Returning stream response")
     return result.toUIMessageStreamResponse()
   } catch (error) {
+    console.log("[v0] API Error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
     return Response.json({ error: errorMessage }, { status: 500 })
   }
