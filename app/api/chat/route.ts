@@ -490,7 +490,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     })
 
     console.log("[v0] Returning stream response")
-    return result.toDataStreamResponse()
+    return result.toUIMessageStreamResponse()
   } catch (error) {
     console.log("[v0] API Error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
