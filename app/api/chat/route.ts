@@ -1,5 +1,10 @@
 import { streamText, tool } from "ai"
+import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
+
+const groq = createGroq({
+  apiKey: process.env.GROQ_API_KEY,
+})
 import { createClient } from "@/lib/supabase/server"
 import {
   getOrCreatePerson,
@@ -81,7 +86,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     console.log("[v0] Messages:", JSON.stringify(messages).substring(0, 300))
     
     const result = streamText({
-      model: "openai/gpt-4o-mini",
+      model: groq("llama-3.3-70b-versatile"),
       system: systemPrompt,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
