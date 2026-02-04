@@ -100,7 +100,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     console.log("[v0] Converted messages:", JSON.stringify(modelMessages).substring(0, 500))
     
     const result = streamText({
-      model: groq("llama-3.1-70b-versatile"),
+      model: groq("llama-3.3-70b-versatile"),
       system: systemPrompt,
       messages: modelMessages,
       tools: {
@@ -395,7 +395,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
           },
         }),
       },
-      maxSteps: 2,
+      maxSteps: 3,
       onFinish: async ({ response }) => {
         console.log("[v0] onFinish called, response messages:", response.messages?.length)
         // Save the conversation if we have a conversationId

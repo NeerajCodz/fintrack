@@ -45,15 +45,26 @@ function formatCurrency(amount: number): string {
 
 // Helper to extract text from UIMessage parts or content
 function getMessageText(message: { 
-  parts?: Array<{ type: string; text?: string }>
+  parts?: Array<{ type: string; text?: string; result?: unknown }>
   content?: string 
 }): string {
   if (message.parts && Array.isArray(message.parts)) {
-    const text = message.parts
-      .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-      .map((p) => p.text)
-      .join("")
-    if (text) return text
+    const textParts: string[] = []
+    
+    for (const p of message.parts) {
+      if (p.type === "text" && typeof p.text === "string") {
+        textParts.push(p.text)
+      }
+      // Also handle tool-result parts that might contain the response message
+      if (p.type === "tool-result" && p.result && typeof p.result === "object") {
+        const result = p.result as { message?: string; success?: boolean }
+        if (result.message) {
+          textParts.push(result.message)
+        }
+      }
+    }
+    
+    if (textParts.length > 0) return textParts.join("\n")
   }
   if (typeof message.content === "string") {
     return message.content
