@@ -116,6 +116,9 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
   const [mentionSearch, setMentionSearch] = useState("")
   const [mentionIndex, setMentionIndex] = useState(0)
   const [cursorPosition, setCursorPosition] = useState(0)
+  
+  // Status messages for real-time feedback
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
   useEffect(() => {
     conversationIdRef.current = currentConversationId
@@ -149,7 +152,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
       }),
     }),
     onError: (err) => {
-      console.log("[v0] useChat error:", err)
+      setStatusMessage(`Error: ${err.message}`)
     },
   })
 
@@ -325,7 +328,13 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
       }
     }
 
+    // Show status message
+    setStatusMessage("Processing your request...")
+    
     sendMessage({ text: messageText })
+    
+    // Clear status after a delay
+    setTimeout(() => setStatusMessage(null), 3000)
   }
 
   function handleQuickPrompt(prompt: string) {
@@ -386,7 +395,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
               })}
             </AnimatePresence>
 
-            {/* Loading indicator */}
+            {/* Loading indicator with status messages */}
             {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -397,22 +406,30 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                   <Bot className="h-4 w-4 text-white" />
                 </div>
                 <div className="glass rounded-2xl px-4 py-3 max-w-[80%]">
-                  <div className="flex items-center gap-1.5">
-                    <motion.div
-                      className="w-2 h-2 rounded-full bg-emerald-400"
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
-                    />
-                    <motion.div
-                      className="w-2 h-2 rounded-full bg-emerald-400"
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                    />
-                    <motion.div
-                      className="w-2 h-2 rounded-full bg-emerald-400"
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                    />
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 text-emerald-400 animate-spin" />
+                      <span className="text-sm text-emerald-400 font-medium">
+                        {statusMessage || "Processing..."}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <motion.div
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                      />
+                      <motion.div
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                      />
+                      <motion.div
+                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                      />
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -436,7 +453,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
           <div className="relative">
             {/* @mention dropdown */}
             <AnimatePresence>
-              {showMentions && filteredPeople.length > 0 && (
+              {showMentions && (filteredPeople.length > 0 || mentionSearch) && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -448,38 +465,75 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                       <AtSign className="h-3 w-3" />
                       Mention a contact
                     </div>
-                    {filteredPeople.slice(0, 6).map((person, index) => (
+                    {filteredPeople.length > 0 ? (
+                      filteredPeople.slice(0, 5).map((person, index) => (
+                        <button
+                          key={person.id}
+                          type="button"
+                          onClick={() => insertMention(person)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                            index === mentionIndex
+                              ? "bg-purple-500/20 text-purple-300"
+                              : "hover:bg-white/5"
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
+                            {person.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium capitalize truncate">{person.name}</p>
+                            {person.relationship && (
+                              <p className="text-xs text-muted-foreground capitalize">{person.relationship}</p>
+                            )}
+                          </div>
+                          {person.running_balance !== 0 && (
+                            <span
+                              className={`text-xs font-medium ${
+                                person.running_balance > 0 ? "text-red-400" : "text-green-400"
+                              }`}
+                            >
+                              {person.running_balance > 0 ? "You owe" : "Owes you"}{" "}
+                              {formatCurrency(Math.abs(person.running_balance))}
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    ) : null}
+                    {/* Create new contact option */}
+                    {mentionSearch && (
                       <button
-                        key={person.id}
                         type="button"
-                        onClick={() => insertMention(person)}
+                        onClick={() => {
+                          // Insert the new name directly - AI will handle creating contact
+                          const textBeforeCursor = input.slice(0, cursorPosition)
+                          const textAfterCursor = input.slice(cursorPosition)
+                          const atPosition = textBeforeCursor.lastIndexOf("@")
+                          const capitalizedName = mentionSearch.charAt(0).toUpperCase() + mentionSearch.slice(1)
+                          const newText = input.slice(0, atPosition) + `@${capitalizedName} ` + textAfterCursor
+                          setInput(newText)
+                          setShowMentions(false)
+                          setMentionSearch("")
+                          setTimeout(() => {
+                            if (textareaRef.current) {
+                              textareaRef.current.focus()
+                              const newPosition = atPosition + capitalizedName.length + 2
+                              textareaRef.current.setSelectionRange(newPosition, newPosition)
+                            }
+                          }, 0)
+                        }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                          index === mentionIndex
-                            ? "bg-purple-500/20 text-purple-300"
-                            : "hover:bg-white/5"
+                          filteredPeople.length === 0 ? "bg-emerald-500/20 text-emerald-300" : "hover:bg-white/5"
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
-                          {person.name.charAt(0).toUpperCase()}
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-sm font-bold">
+                          +
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium capitalize truncate">{person.name}</p>
-                          {person.relationship && (
-                            <p className="text-xs text-muted-foreground capitalize">{person.relationship}</p>
-                          )}
+                          <p className="font-medium capitalize">Create "{mentionSearch}"</p>
+                          <p className="text-xs text-muted-foreground">New contact will be added</p>
                         </div>
-                        {person.running_balance !== 0 && (
-                          <span
-                            className={`text-xs font-medium ${
-                              person.running_balance > 0 ? "text-red-400" : "text-green-400"
-                            }`}
-                          >
-                            {person.running_balance > 0 ? "You owe" : "Owes you"}{" "}
-                            {formatCurrency(Math.abs(person.running_balance))}
-                          </span>
-                        )}
                       </button>
-                    ))}
+                    )}
                   </div>
                 </motion.div>
               )}

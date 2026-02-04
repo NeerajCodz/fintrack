@@ -38,10 +38,8 @@ export async function POST(request: Request) {
 
     // Check for Groq API key
     if (!process.env.GROQ_API_KEY) {
-      console.log("[v0] GROQ_API_KEY is not set")
       return Response.json({ error: "GROQ_API_KEY is not configured" }, { status: 500 })
     }
-    console.log("[v0] GROQ_API_KEY is set, length:", process.env.GROQ_API_KEY.length)
 
     // Get dashboard data for context - wrapped in try-catch for resilience
     let dashboardData = {
@@ -91,69 +89,58 @@ BILL EXAMPLES:
 - "Rent due on the 1st, $2000" → create_bill
 - "Netflix subscription $15 monthly" → create_bill (recurring)
 
-RESPONSE FORMAT - ALWAYS USE THIS STEP-BY-STEP FORMAT:
+RESPONSE FORMAT - ALWAYS RESPOND WITH CLEAR, ACTIONABLE TEXT:
 
-After EVERY action, respond with a CLEAR, STEP-BY-STEP confirmation:
+You MUST always provide a text response after every action. NEVER stay silent.
 
-**Step 1: Contact Check**
-- Found: [Name] (Existing contact)
-  OR
-- Created: [Name] (New contact added)
-
-**Step 2: Action Performed**
-- [Describe exactly what was done]
-
-**Step 3: Amount Details**
-- Amount: [Amount]
-- Category: [If applicable]
-- Reason: [Description if provided]
-
-**Step 4: Balance Update**
-- Previous Balance: [Old balance]
-- Change: +/- [Amount]
-- New Balance: [New total]
-- Summary: [Who owes whom and how much]
-
-**Step 5: Confirmation**
-- Status: SUCCESS/FAILED
-- Record ID: [If applicable]
-
-EXAMPLE - User says "Ajay owes me 60 bucks for dinner":
-
-**Step 1: Contact Check**
-Found: Ajay (Existing contact)
-
-**Step 2: Action Performed**
-Recorded that Ajay borrowed money from you
-
-**Step 3: Amount Details**
-Amount: $60.00
-Reason: Dinner
-
-**Step 4: Balance Update**
-Previous Balance: $0.00
-Change: +$60.00 (they owe you more)
-New Balance: Ajay owes you $60.00
-
-**Step 5: Confirmation**
-Status: SUCCESS - Transaction recorded
+Format your responses like this:
 
 ---
+CONTACT: [Name] - [Existing/New Contact]
+ACTION: [What you did]
+AMOUNT: [Amount involved]
+RESULT: [Final balance - "You owe X $Y" OR "X owes you $Y" OR "All settled"]
+STATUS: SUCCESS / FAILED
+---
 
-If a contact ALREADY EXISTS and user wants to UPDATE their balance, ALWAYS:
-1. Show current balance first
-2. Ask for confirmation: "Update balance from [old] to [new]? (Yes/No/Cancel)"
-3. Only proceed after explicit confirmation
+EXAMPLE 1 - "Ajay owes me 60 for dinner":
+---
+CONTACT: Ajay - Existing Contact
+ACTION: Recorded that Ajay borrowed money from you
+AMOUNT: $60.00 (Reason: dinner)
+RESULT: Ajay owes you $60.00
+STATUS: SUCCESS - Transaction saved to database
+---
 
-When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
+EXAMPLE 2 - "@John paid for lunch $25":
+---
+CONTACT: John - Existing Contact  
+ACTION: Recorded that John paid for you
+AMOUNT: $25.00 (Reason: lunch)
+RESULT: You owe John $25.00
+STATUS: SUCCESS - Transaction saved to database
+---
 
-    console.log("[v0] Calling streamText")
-    console.log("[v0] Messages count:", messages?.length)
-    console.log("[v0] Messages:", JSON.stringify(messages).substring(0, 500))
-    
+EXAMPLE 3 - "Mike owes me 30" (new contact):
+---
+CONTACT: Mike - New Contact Created
+ACTION: Added new contact and recorded loan
+AMOUNT: $30.00
+RESULT: Mike owes you $30.00
+STATUS: SUCCESS - Contact created and transaction saved
+---
+
+IMPORTANT RULES:
+1. ALWAYS respond with text after using a tool - never leave the user waiting
+2. If contact exists, show their current balance FIRST before updating
+3. When updating an existing contact's balance, confirm the change clearly
+4. Use the exact format above so users can quickly scan responses
+5. If something fails, explain what went wrong and suggest next steps
+
+When users ask for dashboard/summary, use the get_dashboard tool and format the data nicely with totals and breakdowns.`
+
     // Convert UIMessage format (with parts array) to ModelMessage format (with content)
     const modelMessages = await convertToModelMessages(messages)
-    console.log("[v0] Converted messages:", JSON.stringify(modelMessages).substring(0, 500))
     
     const result = streamText({
       model: groq("llama-3.3-70b-versatile"),
@@ -210,7 +197,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
 
               return {
                 success: true,
-                message: `Action: Logged expense\nAmount: ${formatCurrency(amount)}\nCategory: ${category}${merchant ? `\nMerchant: ${merchant}` : ""}${description ? `\nDescription: ${description}` : ""}${coaching ? `\nNote: ${coaching}` : ""}\nStatus: Recorded`,
+                message: `---\nACTION: Logged your expense\nAMOUNT: ${formatCurrency(amount)}\nCATEGORY: ${category}${merchant ? `\nMERCHANT: ${merchant}` : ""}${description ? `\nDETAILS: ${description}` : ""}\nSTATUS: SUCCESS - Saved to database${coaching ? `\n\n${coaching}` : ""}\n---`,
                 transaction_id: transaction.id,
               }
             } catch (err) {
@@ -259,21 +246,24 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
                 return { success: false, error: "Transaction logged but due creation failed" }
               }
 
-              const allPeople = await getPeople(userId)
-              const existingPerson = allPeople.find((p) => p.id === person.id)
-              const isNewContact = !existingPerson || existingPerson.created_at === person.created_at
-              
+              const previousBalance = person.running_balance
               await updatePersonBalance(person.id, amount)
+              const newBalance = previousBalance + amount
+              
               await createNote(userId, `${person_name} paid ${formatCurrency(amount)} - you owe`, `transaction:${transaction.id}`)
 
-              const newBalance = person.running_balance + amount
+              // Check if this is a new contact
+              const allPeople = await getPeople(userId)
+              const isNewContact = allPeople.length === 1 || !allPeople.some(p => p.id === person.id && p.created_at !== person.created_at)
+
               return {
                 success: true,
                 is_new_contact: isNewContact,
                 person_name: person.name,
                 amount,
+                previous_balance: previousBalance,
                 new_balance: newBalance,
-                message: `Contact: ${person.name} (${isNewContact ? "New" : "Existing"})\nAction: They paid for you\nAmount: ${formatCurrency(amount)}${merchant ? ` at ${merchant}` : ""}${description ? ` for ${description}` : ""}\nNew Balance: You owe ${person.name} ${formatCurrency(newBalance)}\nStatus: ${isNewContact ? "Created" : "Updated"}`,
+                message: `---\nCONTACT: ${person.name} - ${isNewContact ? "New Contact Created" : "Existing Contact"}\nACTION: ${person.name} paid for you\nAMOUNT: ${formatCurrency(amount)}${description ? ` (${description})` : ""}${merchant ? `\nWHERE: ${merchant}` : ""}\nPREVIOUS BALANCE: ${previousBalance === 0 ? "No previous balance" : previousBalance > 0 ? `You owed ${person.name} ${formatCurrency(previousBalance)}` : `${person.name} owed you ${formatCurrency(Math.abs(previousBalance))}`}\nNEW BALANCE: You owe ${person.name} ${formatCurrency(newBalance)}\nSTATUS: SUCCESS - Saved to database\n---`,
               }
             } catch (err) {
               console.log("[v0] log_expense_other_paid error:", err)
@@ -322,18 +312,20 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
                 return { success: false, error: "Transaction logged but due creation failed" }
               }
 
+              const previousBalance = existingPerson?.running_balance || 0
               await updatePersonBalance(person.id, -amount)
               await createNote(userId, `Lent ${formatCurrency(amount)} to ${person_name}`, `transaction:${transaction.id}`)
 
-              const newBalance = (existingPerson?.running_balance || 0) - amount
+              const newBalance = previousBalance - amount
               
               return {
                 success: true,
                 is_new_contact: isNewContact,
                 person_name: person.name,
                 amount,
+                previous_balance: previousBalance,
                 new_balance: newBalance,
-                message: `Contact: ${person.name} (${isNewContact ? "New" : "Existing"})\nAction: Recorded money lent\nAmount: ${formatCurrency(amount)}${description ? ` for ${description}` : ""}\nNew Balance: ${person.name} owes you ${formatCurrency(Math.abs(newBalance))}\nStatus: ${isNewContact ? "Created" : "Updated"}`,
+                message: `---\nCONTACT: ${person.name} - ${isNewContact ? "New Contact Created" : "Existing Contact"}\nACTION: Recorded money you lent/paid for them\nAMOUNT: ${formatCurrency(amount)}${description ? ` (${description})` : ""}\nPREVIOUS BALANCE: ${previousBalance === 0 ? "No previous balance" : previousBalance > 0 ? `You owed ${person.name} ${formatCurrency(previousBalance)}` : `${person.name} owed you ${formatCurrency(Math.abs(previousBalance))}`}\nNEW BALANCE: ${person.name} owes you ${formatCurrency(Math.abs(newBalance))}\nSTATUS: SUCCESS - Saved to database\n---`,
               }
             } catch (err) {
               console.log("[v0] log_lent_money error:", err)
@@ -373,8 +365,9 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
                 success: true,
                 person_name: person.name,
                 amount_received: receiveAmount,
+                previous_balance: person.running_balance,
                 new_balance: newBalance,
-                message: `Contact: ${person.name} (Existing)\nAction: Received payment\nAmount: ${formatCurrency(receiveAmount)}\nNew Balance: ${newBalance === 0 ? "You're square" : newBalance < 0 ? `${person.name} still owes you ${formatCurrency(Math.abs(newBalance))}` : `You now owe ${person.name} ${formatCurrency(newBalance)}`}\nStatus: Updated`,
+                message: `---\nCONTACT: ${person.name} - Existing Contact\nACTION: Received payment from ${person.name}\nAMOUNT: ${formatCurrency(receiveAmount)}\nPREVIOUS BALANCE: ${person.name} owed you ${formatCurrency(Math.abs(person.running_balance))}\nNEW BALANCE: ${newBalance === 0 ? "All settled! You're square." : newBalance < 0 ? `${person.name} still owes you ${formatCurrency(Math.abs(newBalance))}` : `You now owe ${person.name} ${formatCurrency(newBalance)}`}\nSTATUS: SUCCESS - Payment recorded\n---`,
               }
             } catch (err) {
               console.log("[v0] receive_payment error:", err)
@@ -414,13 +407,16 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
               await updatePersonBalance(person.id, -settleAmount)
               await createNote(userId, `Settled ${formatCurrency(settleAmount)} with ${person_name}`, `person:${person.id}`)
 
-              const remaining = person.running_balance - settleAmount
+              const previousBalance = person.running_balance
+              const remaining = previousBalance - settleAmount
+              
               return {
                 success: true,
                 person_name: person.name,
                 amount_settled: settleAmount,
+                previous_balance: previousBalance,
                 new_balance: remaining,
-                message: `Contact: ${person.name} (Existing)\nAction: You paid them back\nAmount: ${formatCurrency(settleAmount)}\nNew Balance: ${remaining === 0 ? "You're square!" : `You still owe ${person.name} ${formatCurrency(Math.abs(remaining))}`}\nStatus: Updated`,
+                message: `---\nCONTACT: ${person.name} - Existing Contact\nACTION: You paid ${person.name} back\nAMOUNT: ${formatCurrency(settleAmount)}\nPREVIOUS BALANCE: You owed ${person.name} ${formatCurrency(previousBalance)}\nNEW BALANCE: ${remaining === 0 ? "All settled! You're square." : `You still owe ${person.name} ${formatCurrency(Math.abs(remaining))}`}\nSTATUS: SUCCESS - Payment recorded\n---`,
               }
             } catch (err) {
               console.log("[v0] settle_due error:", err)
