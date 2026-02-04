@@ -151,7 +151,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           description:
             "Log an expense that the user paid for. Use when user mentions spending money themselves.",
           inputSchema: z.object({
-            amount: z.number().describe("Amount spent in dollars"),
+            amount: z.coerce.number().describe("Amount spent in dollars"),
             category: z
               .string()
               .describe(
@@ -212,7 +212,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
             "Log an expense that someone else paid for. Creates a due - user now owes that person.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of person who paid"),
-            amount: z.number().describe("Amount they paid"),
+            amount: z.coerce.number().describe("Amount they paid"),
             category: z.string().describe("Spending category"),
             merchant: z.string().nullable().describe("Where"),
             description: z.string().nullable().describe("What for"),
@@ -276,7 +276,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           description: "Log money the user lent to someone or paid on their behalf. Creates a due - that person now owes the user. Use when user says 'I paid for X' or 'X owes me'.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of person who owes the user"),
-            amount: z.number().describe("Amount they owe"),
+            amount: z.coerce.number().describe("Amount they owe"),
             description: z.string().nullable().describe("What it was for"),
           }),
           execute: async ({ person_name, amount, description }) => {
@@ -338,7 +338,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           description: "Record when someone pays the user back. Use when user says 'X paid me back' or 'received payment from X'.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of person who paid"),
-            amount: z.number().nullable().describe("Amount received. If null, clear all they owe."),
+            amount: z.coerce.number().nullable().describe("Amount received. If null, clear all they owe."),
           }),
           execute: async ({ person_name, amount }) => {
             try {
@@ -380,7 +380,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           description: "Settle a due/debt - when USER pays back someone THEY owe. Use when user says they paid back someone.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of person being paid back"),
-            amount: z.number().nullable().describe("Amount being settled. If null, settle all dues."),
+            amount: z.coerce.number().nullable().describe("Amount being settled. If null, settle all dues."),
           }),
           execute: async ({ person_name, amount }) => {
             try {
@@ -429,7 +429,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           description: "Create a bill reminder. Use for rent, utilities, subscriptions, EMIs.",
           inputSchema: z.object({
             name: z.string().describe("Bill name (rent, electricity, Netflix)"),
-            amount: z.number().describe("Bill amount"),
+            amount: z.coerce.number().describe("Bill amount"),
             due_date: z.string().describe("Due date in YYYY-MM-DD format or day of month"),
             recurring: z.boolean().describe("Is this a recurring bill?"),
             recurrence_pattern: z.string().nullable().describe("monthly, weekly, yearly"),
