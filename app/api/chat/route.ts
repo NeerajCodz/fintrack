@@ -1,4 +1,4 @@
-import { streamText, tool, convertToModelMessages } from "ai"
+import { streamText, tool } from "ai"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -65,7 +65,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
   const result = streamText({
     model: "openai/gpt-4o-mini",
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
+    messages,
     tools: {
       log_expense: tool({
         description:
@@ -407,5 +407,5 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     },
   })
 
-  return result.toUIMessageStreamResponse()
+  return result.toDataStreamResponse()
 }

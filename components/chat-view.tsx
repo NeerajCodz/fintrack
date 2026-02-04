@@ -1,10 +1,7 @@
 "use client"
 
 import React from "react"
-
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useChat, type UseChatOptions } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -14,103 +11,75 @@ import {
   Sparkles,
   Wallet,
   TrendingUp,
+  TrendingDown,
   Receipt,
-  Users,
-  ArrowUpCircle,
+  AlertCircle,
+  Loader2,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+
+interface Message {
+  id: string
+  role: "user" | "assistant"
+  content: string
+}
 
 interface ChatViewProps {
   conversationId: string | null
   onConversationCreated: (id: string, title: string) => void
 }
 
-// Helper function to extract text from UIMessage parts
-function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
-  if (!message.parts || !Array.isArray(message.parts)) return ""
-  return message.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-    .map((p) => p.text)
-    .join("")
+interface DashboardStats {
+  totalSpentThisMonth: number
+  topCategory: { category: string; total: number } | null
+  outstandingDues: {
+    youOwe: { person: string; amount: number }[]
+    owedToYou: { person: string; amount: number }[]
+  }
+  upcomingBills: { name: string; amount: number; due_date: string }[]
 }
 
-const quickPrompts = [
-  {
-    icon: Receipt,
-    label: "Log Expense",
-    prompt: "I spent $25 on lunch at Chipotle",
-    color: "from-blue-500 to-blue-600",
-  },
-  {
-    icon: Users,
-    label: "Split Bill",
-    prompt: "John paid for dinner, $80 total",
-    color: "from-emerald-500 to-emerald-600",
-  },
-  {
-    icon: TrendingUp,
-    label: "Dashboard",
-    prompt: "Show me my financial dashboard",
-    color: "from-purple-500 to-purple-600",
-  },
-  {
-    icon: ArrowUpCircle,
-    label: "Add Bill",
-    prompt: "Rent is due on the 1st, $1500 monthly",
-    color: "from-orange-500 to-orange-600",
-  },
-]
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount)
+}
 
 export function ChatView({ conversationId, onConversationCreated }: ChatViewProps) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId)
   const [input, setInput] = useState("")
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [streamingContent, setStreamingContent] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Update currentConversationId when prop changes
   useEffect(() => {
     setCurrentConversationId(conversationId)
   }, [conversationId])
 
-  const chatOptions: UseChatOptions = {
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      prepareSendMessagesRequest: ({ messages }) => ({
-        body: {
-          messages,
-          conversationId: currentConversationId,
-        },
-      }),
-    }),
-    id: currentConversationId || "new",
-  }
-
-  const { messages, sendMessage, status, setMessages } = useChat(chatOptions)
-
-  // Reset messages when conversation changes
   useEffect(() => {
     if (conversationId === null) {
       setMessages([])
       setCurrentConversationId(null)
     } else if (conversationId !== currentConversationId) {
-      // Load messages for existing conversation
       loadConversationMessages(conversationId)
     }
-  }, [conversationId])
+  }, [conversationId, currentConversationId])
 
   const loadConversationMessages = useCallback(async (convId: string) => {
-    const response = await fetch(`/api/conversations/${convId}/messages`)
-    if (response.ok) {
-      const data = await response.json()
-      const formattedMessages = data.messages.map((m: { id: string; role: string; content: string }) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        parts: [{ type: "text", text: m.content }],
-      }))
-      setMessages(formattedMessages)
-      setCurrentConversationId(convId)
+    try {
+      const response = await fetch(`/api/conversations/${convId}/messages`)
+      if (response.ok) {
+        const data = await response.json()
+        setMessages(data.messages || [])
+        setCurrentConversationId(convId)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to load messages:", error)
     }
-  }, [setMessages])
+  }, [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -118,9 +87,8 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, streamingContent])
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
@@ -130,32 +98,131 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!input.trim() || status === "streaming" || status === "submitted") return
+    if (!input.trim() || isLoading) return
 
     const messageText = input.trim()
     setInput("")
+    setIsLoading(true)
+    setStreamingContent("")
 
-    // Create conversation if this is a new chat
-    if (!currentConversationId) {
-      const response = await fetch("/api/conversations", {
+    // Add user message immediately
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: messageText,
+    }
+    setMessages((prev) => [...prev, userMessage])
+
+    let convId = currentConversationId
+
+    // Create conversation if new
+    if (!convId) {
+      try {
+        const createRes = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: messageText.slice(0, 50) }),
+        })
+        if (createRes.ok) {
+          const data = await createRes.json()
+          convId = data.conversation.id
+          setCurrentConversationId(convId)
+          onConversationCreated(data.conversation.id, data.conversation.title)
+        }
+      } catch (error) {
+        console.error("[v0] Failed to create conversation:", error)
+      }
+    }
+
+    // Build messages array for API
+    const apiMessages = [...messages, userMessage].map((m) => ({
+      role: m.role,
+      content: m.content,
+    }))
+
+    try {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: messageText.slice(0, 50) }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          conversationId: convId,
+        }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setCurrentConversationId(data.conversation.id)
-        onConversationCreated(data.conversation.id, data.conversation.title)
-        
-        // Send message with new conversation ID
-        sendMessage(
-          { text: messageText },
-          { body: { conversationId: data.conversation.id } }
-        )
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
       }
-    } else {
-      sendMessage({ text: messageText })
+
+      if (!response.body) {
+        throw new Error("No response body")
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let fullContent = ""
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || "" // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+
+          // AI SDK data stream format: "0:" prefix for text chunks
+          if (trimmed.startsWith("0:")) {
+            try {
+              const data = JSON.parse(trimmed.slice(2))
+              if (typeof data === "string") {
+                fullContent += data
+                setStreamingContent(fullContent)
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+          // Also handle "f:" format for finish reason (ignore)
+          // And "e:" for errors, "d:" for data
+          else if (trimmed.startsWith("d:")) {
+            try {
+              const data = JSON.parse(trimmed.slice(2))
+              if (data && typeof data.text === "string") {
+                fullContent += data.text
+                setStreamingContent(fullContent)
+              }
+            } catch {
+              // Skip
+            }
+          }
+        }
+      }
+
+      // Add assistant message
+      if (fullContent) {
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: fullContent,
+        }
+        setMessages((prev) => [...prev, assistantMessage])
+      }
+    } catch (error) {
+      console.error("[v0] Chat error:", error)
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        role: "assistant",
+        content: "Something went wrong. Try again.",
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+      setStreamingContent("")
     }
   }
 
@@ -164,7 +231,6 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
     textareaRef.current?.focus()
   }
 
-  const isStreaming = status === "streaming" || status === "submitted"
   const showWelcome = messages.length === 0 && !conversationId
 
   return (
@@ -176,60 +242,53 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
             <AnimatePresence mode="popLayout">
-              {messages.map((message, index) => {
-                const text = getMessageText(message)
-                if (!text) return null
-
-                return (
-                  <motion.div
-                    key={message.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className={`flex gap-4 ${
-                      message.role === "user" ? "flex-row-reverse" : ""
+              {messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`flex gap-4 ${
+                    message.role === "user" ? "flex-row-reverse" : ""
+                  }`}
+                >
+                  <div
+                    className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${
+                      message.role === "user"
+                        ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20"
+                        : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/20"
                     }`}
                   >
-                    {/* Avatar */}
-                    <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${
-                        message.role === "user"
-                          ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20"
-                          : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/20"
-                      }`}
-                    >
-                      {message.role === "user" ? (
-                        <User className="h-4 w-4 text-white" />
-                      ) : (
-                        <Bot className="h-4 w-4 text-white" />
-                      )}
-                    </div>
+                    {message.role === "user" ? (
+                      <User className="h-4 w-4 text-white" />
+                    ) : (
+                      <Bot className="h-4 w-4 text-white" />
+                    )}
+                  </div>
 
-                    {/* Message Content */}
+                  <div
+                    className={`flex-1 max-w-[80%] ${
+                      message.role === "user" ? "text-right" : ""
+                    }`}
+                  >
                     <div
-                      className={`flex-1 max-w-[80%] ${
-                        message.role === "user" ? "text-right" : ""
+                      className={`inline-block rounded-2xl px-4 py-3 ${
+                        message.role === "user"
+                          ? "bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white"
+                          : "glass"
                       }`}
                     >
-                      <div
-                        className={`inline-block rounded-2xl px-4 py-3 ${
-                          message.role === "user"
-                            ? "bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white"
-                            : "glass"
-                        }`}
-                      >
-                        <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {text}
-                        </div>
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {message.content}
                       </div>
                     </div>
-                  </motion.div>
-                )
-              })}
+                  </div>
+                </motion.div>
+              ))}
             </AnimatePresence>
 
-            {/* Streaming Indicator */}
-            {isStreaming && (
+            {/* Streaming Message */}
+            {(isLoading || streamingContent) && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -238,24 +297,30 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
                   <Bot className="h-4 w-4 text-white" />
                 </div>
-                <div className="glass rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <motion.div
-                      className="w-2 h-2 rounded-full bg-emerald-400"
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
-                    />
-                    <motion.div
-                      className="w-2 h-2 rounded-full bg-emerald-400"
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                    />
-                    <motion.div
-                      className="w-2 h-2 rounded-full bg-emerald-400"
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                    />
-                  </div>
+                <div className="glass rounded-2xl px-4 py-3 max-w-[80%]">
+                  {streamingContent ? (
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {streamingContent}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <motion.div
+                        className="w-2 h-2 rounded-full bg-emerald-400"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                      />
+                      <motion.div
+                        className="w-2 h-2 rounded-full bg-emerald-400"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                      />
+                      <motion.div
+                        className="w-2 h-2 rounded-full bg-emerald-400"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                      />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -280,7 +345,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                 }
               }}
               placeholder="Log an expense, bill, or ask for your dashboard..."
-              disabled={isStreaming}
+              disabled={isLoading}
               className="min-h-[56px] max-h-[200px] resize-none bg-transparent border-0 focus-visible:ring-0 pr-14 py-4 text-sm"
               rows={1}
             />
@@ -292,10 +357,14 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
               <Button
                 type="submit"
                 size="icon"
-                disabled={isStreaming || !input.trim()}
+                disabled={isLoading || !input.trim()}
                 className="h-10 w-10 rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 transition-all duration-300 shadow-lg shadow-blue-500/20 disabled:opacity-50"
               >
-                <Send className="h-4 w-4 text-white" />
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 text-white animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 text-white" />
+                )}
                 <span className="sr-only">Send message</span>
               </Button>
             </motion.div>
@@ -310,13 +379,43 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 }
 
 function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => void }) {
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/dashboard")
+        if (res.ok) {
+          const data = await res.json()
+          setStats(data.data)
+        }
+      } catch (error) {
+        console.error("[v0] Failed to fetch stats:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStats()
+  }, [])
+
+  const totalYouOwe = stats?.outstandingDues.youOwe.reduce((sum, d) => sum + d.amount, 0) || 0
+  const totalOwedToYou = stats?.outstandingDues.owedToYou.reduce((sum, d) => sum + d.amount, 0) || 0
+
+  const quickPrompts = [
+    { label: "Log expense", prompt: "I spent $25 on lunch at Chipotle" },
+    { label: "Split bill", prompt: "John paid for dinner, $80 total" },
+    { label: "Show dashboard", prompt: "Show me my financial dashboard" },
+    { label: "Add bill", prompt: "Rent is due on the 1st, $1500 monthly" },
+  ]
+
   return (
     <div className="h-full flex flex-col items-center justify-center px-4 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="text-center max-w-2xl"
+        className="text-center max-w-2xl w-full"
       >
         {/* Logo */}
         <motion.div
@@ -341,51 +440,131 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="text-muted-foreground mb-2"
+          className="text-muted-foreground mb-8"
         >
           Your blunt, no-nonsense financial tracking assistant
         </motion.p>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="flex items-center justify-center gap-2 text-sm text-muted-foreground/70 mb-8"
-        >
-          <Sparkles className="h-4 w-4 text-emerald-400" />
-          <span>Powered by AI, backed by Postgres</span>
-        </motion.div>
-
-        {/* Quick Prompts */}
+        {/* Stats Grid */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto"
+          transition={{ delay: 0.5 }}
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
         >
-          {quickPrompts.map((item, index) => (
-            <motion.button
+          {/* Monthly Spending */}
+          <div className="glass rounded-xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-blue-400" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mb-1">This Month</p>
+            {loading ? (
+              <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-bold text-blue-400">
+                {formatCurrency(stats?.totalSpentThisMonth || 0)}
+              </p>
+            )}
+          </div>
+
+          {/* Top Category */}
+          <div className="glass rounded-xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <Receipt className="h-4 w-4 text-emerald-400" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mb-1">Top Category</p>
+            {loading ? (
+              <div className="h-6 w-16 bg-white/5 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-bold text-emerald-400 capitalize">
+                {stats?.topCategory?.category || "None"}
+              </p>
+            )}
+          </div>
+
+          {/* You Owe */}
+          <div className="glass rounded-xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                <TrendingDown className="h-4 w-4 text-red-400" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mb-1">You Owe</p>
+            {loading ? (
+              <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-bold text-red-400">
+                {formatCurrency(totalYouOwe)}
+              </p>
+            )}
+          </div>
+
+          {/* Owed To You */}
+          <div className="glass rounded-xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-green-400" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mb-1">Owed to You</p>
+            {loading ? (
+              <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-bold text-green-400">
+                {formatCurrency(totalOwedToYou)}
+              </p>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Upcoming Bills Alert */}
+        {stats && stats.upcomingBills.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="glass rounded-xl p-4 border border-orange-500/30 mb-8"
+          >
+            <div className="flex items-center gap-2 text-orange-400 mb-2">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">Upcoming Bills</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {stats.upcomingBills.slice(0, 3).map((bill) => (
+                <span
+                  key={bill.name}
+                  className="text-xs px-2 py-1 rounded-full bg-orange-500/10 text-orange-300"
+                >
+                  {bill.name}: {formatCurrency(bill.amount)} due {bill.due_date}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="flex items-center justify-center gap-2 flex-wrap"
+        >
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Sparkles className="h-3 w-3" />
+            Try:
+          </span>
+          {quickPrompts.map((item) => (
+            <button
               key={item.label}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 + index * 0.1 }}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
               onClick={() => onQuickPrompt(item.prompt)}
-              className="flex items-center gap-3 p-4 rounded-xl glass border border-white/10 hover:border-white/20 text-left transition-all duration-200 group"
+              className="text-xs px-3 py-1.5 rounded-full glass border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/10 transition-all"
             >
-              <div
-                className={`w-10 h-10 rounded-lg bg-gradient-to-br ${item.color} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform`}
-              >
-                <item.icon className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="font-medium text-sm">{item.label}</p>
-                <p className="text-xs text-muted-foreground line-clamp-1">
-                  {item.prompt}
-                </p>
-              </div>
-            </motion.button>
+              {item.label}
+            </button>
           ))}
         </motion.div>
       </motion.div>
