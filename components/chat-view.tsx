@@ -2,13 +2,14 @@
 
 import React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
+import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport } from "ai"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Send,
   Bot,
   User,
-  Sparkles,
   Wallet,
   TrendingUp,
   TrendingDown,
@@ -17,12 +18,6 @@ import {
   Loader2,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-
-interface Message {
-  id: string
-  role: "user" | "assistant"
-  content: string
-}
 
 interface ChatViewProps {
   conversationId: string | null
@@ -46,14 +41,38 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+// Helper to extract text from UIMessage parts
+function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
+  if (!message.parts || !Array.isArray(message.parts)) return ""
+  return message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
+    .map((p) => p.text)
+    .join("")
+}
+
 export function ChatView({ conversationId, onConversationCreated }: ChatViewProps) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId)
   const [input, setInput] = useState("")
-  const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [streamingContent, setStreamingContent] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Use the AI SDK useChat hook with DefaultChatTransport
+  const { messages, status, sendMessage, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      prepareSendMessagesRequest: ({ messages: chatMessages }) => ({
+        body: {
+          messages: chatMessages.map((m) => ({
+            role: m.role,
+            content: getMessageText(m) || "",
+          })),
+          conversationId: currentConversationId,
+        },
+      }),
+    }),
+  })
+
+  const isLoading = status === "streaming" || status === "submitted"
 
   useEffect(() => {
     setCurrentConversationId(conversationId)
@@ -66,20 +85,26 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
     } else if (conversationId !== currentConversationId) {
       loadConversationMessages(conversationId)
     }
-  }, [conversationId, currentConversationId])
+  }, [conversationId, currentConversationId, setMessages])
 
   const loadConversationMessages = useCallback(async (convId: string) => {
     try {
       const response = await fetch(`/api/conversations/${convId}/messages`)
       if (response.ok) {
         const data = await response.json()
-        setMessages(data.messages || [])
+        // Convert stored messages to UIMessage format
+        const uiMessages = (data.messages || []).map((m: { id: string; role: string; content: string }) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          parts: [{ type: "text" as const, text: m.content }],
+        }))
+        setMessages(uiMessages)
         setCurrentConversationId(convId)
       }
     } catch {
       // Silently fail - conversation might not exist
     }
-  }, [])
+  }, [setMessages])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -87,7 +112,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, streamingContent])
+  }, [messages])
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -102,16 +127,6 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 
     const messageText = input.trim()
     setInput("")
-    setIsLoading(true)
-    setStreamingContent("")
-
-    // Add user message immediately
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: messageText,
-    }
-    setMessages((prev) => [...prev, userMessage])
 
     let convId = currentConversationId
 
@@ -134,105 +149,8 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       }
     }
 
-    // Build messages array for API
-    const apiMessages = [...messages, userMessage].map((m) => ({
-      role: m.role,
-      content: m.content,
-    }))
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: apiMessages,
-          conversationId: convId,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorData}`)
-      }
-
-      if (!response.body) {
-        throw new Error("No response body")
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ""
-      let buffer = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() || ""
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-
-          // UI Message Stream format uses SSE with different event types
-          // Format: "data: {...json...}" or numbered prefixes like "0:", "f:", etc.
-          
-          // Handle SSE data format
-          if (trimmed.startsWith("data:")) {
-            const jsonStr = trimmed.slice(5).trim()
-            if (jsonStr === "[DONE]") continue
-            try {
-              const data = JSON.parse(jsonStr)
-              // Extract text from different message formats
-              if (data.type === "text-delta" && data.delta) {
-                fullContent += data.delta
-                setStreamingContent(fullContent)
-              } else if (data.type === "text" && data.text) {
-                fullContent += data.text
-                setStreamingContent(fullContent)
-              }
-            } catch {
-              // Skip invalid JSON
-            }
-          }
-          // Handle numbered prefix format (0: for text chunks)
-          else if (trimmed.startsWith("0:")) {
-            try {
-              const data = JSON.parse(trimmed.slice(2))
-              if (typeof data === "string") {
-                fullContent += data
-                setStreamingContent(fullContent)
-              }
-            } catch {
-              // Skip
-            }
-          }
-        }
-      }
-
-      // Add assistant message
-      if (fullContent) {
-        const assistantMessage: Message = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: fullContent,
-        }
-        setMessages((prev) => [...prev, assistantMessage])
-      }
-    } catch (error) {
-      const errorContent = error instanceof Error ? error.message : "Unknown error"
-      const errorMessage: Message = {
-        id: `error-${Date.now()}`,
-        role: "assistant",
-        content: `Something went wrong: ${errorContent}. Try again.`,
-      }
-      setMessages((prev) => [...prev, errorMessage])
-    } finally {
-      setIsLoading(false)
-      setStreamingContent("")
-    }
+    // Send message using useChat
+    sendMessage({ text: messageText })
   }
 
   function handleQuickPrompt(prompt: string) {
@@ -251,53 +169,56 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
             <AnimatePresence mode="popLayout">
-              {messages.map((message) => (
-                <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`flex gap-4 ${
-                    message.role === "user" ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${
-                      message.role === "user"
-                        ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20"
-                        : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/20"
-                    }`}
-                  >
-                    {message.role === "user" ? (
-                      <User className="h-4 w-4 text-white" />
-                    ) : (
-                      <Bot className="h-4 w-4 text-white" />
-                    )}
-                  </div>
-
-                  <div
-                    className={`flex-1 max-w-[80%] ${
-                      message.role === "user" ? "text-right" : ""
+              {messages.map((message) => {
+                const content = getMessageText(message)
+                return (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex gap-4 ${
+                      message.role === "user" ? "flex-row-reverse" : ""
                     }`}
                   >
                     <div
-                      className={`inline-block rounded-2xl px-4 py-3 ${
+                      className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${
                         message.role === "user"
-                          ? "bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white"
-                          : "glass"
+                          ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20"
+                          : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/20"
                       }`}
                     >
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {message.content}
+                      {message.role === "user" ? (
+                        <User className="h-4 w-4 text-white" />
+                      ) : (
+                        <Bot className="h-4 w-4 text-white" />
+                      )}
+                    </div>
+
+                    <div
+                      className={`flex-1 max-w-[80%] ${
+                        message.role === "user" ? "text-right" : ""
+                      }`}
+                    >
+                      <div
+                        className={`inline-block rounded-2xl px-4 py-3 ${
+                          message.role === "user"
+                            ? "bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white"
+                            : "glass"
+                        }`}
+                      >
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {content || (isLoading && message.role === "assistant" ? "..." : "")}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                )
+              })}
             </AnimatePresence>
 
-            {/* Streaming Message */}
-            {(isLoading || streamingContent) && (
+            {/* Loading indicator when waiting for first response */}
+            {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -307,29 +228,23 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
                   <Bot className="h-4 w-4 text-white" />
                 </div>
                 <div className="glass rounded-2xl px-4 py-3 max-w-[80%]">
-                  {streamingContent ? (
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {streamingContent}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <motion.div
-                        className="w-2 h-2 rounded-full bg-emerald-400"
-                        animate={{ scale: [1, 1.3, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
-                      />
-                      <motion.div
-                        className="w-2 h-2 rounded-full bg-emerald-400"
-                        animate={{ scale: [1, 1.3, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                      />
-                      <motion.div
-                        className="w-2 h-2 rounded-full bg-emerald-400"
-                        animate={{ scale: [1, 1.3, 1] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                      />
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <motion.div
+                      className="w-2 h-2 rounded-full bg-emerald-400"
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                    />
+                    <motion.div
+                      className="w-2 h-2 rounded-full bg-emerald-400"
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                    />
+                    <motion.div
+                      className="w-2 h-2 rounded-full bg-emerald-400"
+                      animate={{ scale: [1, 1.3, 1] }}
+                      transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                    />
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -562,18 +477,16 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
           transition={{ delay: 0.7 }}
           className="flex items-center justify-center gap-2 flex-wrap"
         >
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Sparkles className="h-3 w-3" />
-            Try:
-          </span>
           {quickPrompts.map((item) => (
-            <button
+            <motion.button
               key={item.label}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => onQuickPrompt(item.prompt)}
-              className="text-xs px-3 py-1.5 rounded-full glass border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/10 transition-all"
+              className="glass px-4 py-2 rounded-full text-sm border border-white/10 hover:border-blue-500/50 transition-colors"
             >
               {item.label}
-            </button>
+            </motion.button>
           ))}
         </motion.div>
       </motion.div>

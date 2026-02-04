@@ -34,7 +34,7 @@ export async function getOrCreatePerson(
     .single()
 
   if (error) {
-    console.error("[v0] Failed to create person:", error)
+    // Person creation failed
     return null
   }
 
@@ -108,7 +108,7 @@ export async function createTransaction(
     .single()
 
   if (error) {
-    console.error("[v0] Failed to create transaction:", error)
+    // Transaction creation failed
     return null
   }
 
@@ -170,7 +170,7 @@ export async function createDue(
     .single()
 
   if (error) {
-    console.error("[v0] Failed to create due:", error)
+    // Due creation failed
     return null
   }
 
@@ -259,7 +259,7 @@ export async function createBill(
     .single()
 
   if (error) {
-    console.error("[v0] Failed to create bill:", error)
+    // Bill creation failed
     return null
   }
 
