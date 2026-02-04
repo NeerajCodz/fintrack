@@ -25,17 +25,21 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  console.log("[v0] Creating conversation")
   const supabase = await createClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
+  console.log("[v0] Conversation user:", user?.id)
+
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 })
   }
 
   const { title } = await request.json()
+  console.log("[v0] Conversation title:", title)
 
   const { data: conversation, error } = await supabase
     .from("conversations")
@@ -47,9 +51,11 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
+    console.log("[v0] Conversation create error:", error)
     return Response.json({ error: error.message }, { status: 500 })
   }
 
+  console.log("[v0] Conversation created:", conversation?.id)
   return Response.json({ conversation })
 }
 
