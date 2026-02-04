@@ -91,20 +91,59 @@ BILL EXAMPLES:
 - "Rent due on the 1st, $2000" → create_bill
 - "Netflix subscription $15 monthly" → create_bill (recurring)
 
-RESPONSE FORMAT:
-After EVERY tool call, you MUST respond with a clear confirmation message. Format:
-- Contact: [Name] (Existing/New)
-- Action: [What was done]
-- Amount: [Amount]
-- Balance: [New balance with that person]
-- Status: Updated/Created
+RESPONSE FORMAT - ALWAYS USE THIS STEP-BY-STEP FORMAT:
 
-Example response after logging that Ajay owes you $60:
-"Contact: Ajay (Existing)
-Action: Recorded money lent
-Amount: $60
-New Balance: Ajay owes you $60
-Status: Updated"
+After EVERY action, respond with a CLEAR, STEP-BY-STEP confirmation:
+
+**Step 1: Contact Check**
+- Found: [Name] (Existing contact)
+  OR
+- Created: [Name] (New contact added)
+
+**Step 2: Action Performed**
+- [Describe exactly what was done]
+
+**Step 3: Amount Details**
+- Amount: [Amount]
+- Category: [If applicable]
+- Reason: [Description if provided]
+
+**Step 4: Balance Update**
+- Previous Balance: [Old balance]
+- Change: +/- [Amount]
+- New Balance: [New total]
+- Summary: [Who owes whom and how much]
+
+**Step 5: Confirmation**
+- Status: SUCCESS/FAILED
+- Record ID: [If applicable]
+
+EXAMPLE - User says "Ajay owes me 60 bucks for dinner":
+
+**Step 1: Contact Check**
+Found: Ajay (Existing contact)
+
+**Step 2: Action Performed**
+Recorded that Ajay borrowed money from you
+
+**Step 3: Amount Details**
+Amount: $60.00
+Reason: Dinner
+
+**Step 4: Balance Update**
+Previous Balance: $0.00
+Change: +$60.00 (they owe you more)
+New Balance: Ajay owes you $60.00
+
+**Step 5: Confirmation**
+Status: SUCCESS - Transaction recorded
+
+---
+
+If a contact ALREADY EXISTS and user wants to UPDATE their balance, ALWAYS:
+1. Show current balance first
+2. Ask for confirmation: "Update balance from [old] to [new]? (Yes/No/Cancel)"
+3. Only proceed after explicit confirmation
 
 When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
 
@@ -438,6 +477,51 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
               }
             } catch (err) {
               console.log("[v0] create_bill error:", err)
+              return { success: false, error: String(err) }
+            }
+          },
+        }),
+
+        get_person_info: tool({
+          description: "Get detailed info about a specific person/contact including their balance and transaction history. Use when user mentions someone with @name or asks about a specific person.",
+          inputSchema: z.object({
+            person_name: z.string().describe("Name of the person to look up"),
+          }),
+          execute: async ({ person_name }) => {
+            try {
+              const allPeople = await getPeople(userId)
+              const person = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase())
+
+              if (!person) {
+                return {
+                  success: false,
+                  found: false,
+                  message: `No contact found with name "${person_name}". Would you like to create a new contact?`,
+                  available_contacts: allPeople.map((p) => p.name),
+                }
+              }
+
+              // Get dues related to this person
+              const dues = await getPendingDues(userId)
+              const personDues = dues.filter((d) => d.person_id === person.id)
+
+              return {
+                success: true,
+                found: true,
+                person: {
+                  name: person.name,
+                  relationship: person.relationship,
+                  email: person.email,
+                  phone: person.phone,
+                  running_balance: person.running_balance,
+                  balance_direction: person.running_balance > 0 ? "you_owe_them" : person.running_balance < 0 ? "they_owe_you" : "settled",
+                  created_at: person.created_at,
+                },
+                pending_dues: personDues.length,
+                message: `**Contact Found: ${person.name}**\n\nRelationship: ${person.relationship || "Not set"}\nBalance: ${person.running_balance === 0 ? "All settled" : person.running_balance > 0 ? `You owe ${person.name} ${formatCurrency(person.running_balance)}` : `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`}\nPending transactions: ${personDues.length}\n\nWhat would you like to do with ${person.name}?`,
+              }
+            } catch (err) {
+              console.log("[v0] get_person_info error:", err)
               return { success: false, error: String(err) }
             }
           },

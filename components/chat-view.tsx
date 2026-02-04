@@ -24,6 +24,8 @@ import type { Person } from "@/lib/types"
 interface ChatViewProps {
   conversationId: string | null
   onConversationCreated: (id: string, title: string) => void
+  pendingChatPerson?: Person | null
+  onClearPendingPerson?: () => void
 }
 
 interface DashboardStats {
@@ -101,7 +103,7 @@ function renderMessageWithMentions(content: string): React.ReactNode {
   return parts.length > 0 ? parts : content
 }
 
-export function ChatView({ conversationId, onConversationCreated }: ChatViewProps) {
+export function ChatView({ conversationId, onConversationCreated, pendingChatPerson, onClearPendingPerson }: ChatViewProps) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId)
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -201,6 +203,19 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
     }
   }, [input])
+
+  // Handle pending chat with person from contacts
+  useEffect(() => {
+    if (pendingChatPerson && !conversationId) {
+      // Pre-fill input with the person's name mentioned
+      setInput(`@${pendingChatPerson.name} `)
+      onClearPendingPerson?.()
+      // Focus the textarea
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 100)
+    }
+  }, [pendingChatPerson, conversationId, onClearPendingPerson])
 
   // Handle @mention detection
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

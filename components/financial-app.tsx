@@ -7,6 +7,7 @@ import { AnimatedBackground } from "@/components/animated-background"
 import { ChatView } from "@/components/chat-view"
 import { Sidebar } from "@/components/sidebar"
 import { ContactsManager } from "@/components/contacts-manager"
+import type { Person } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -27,6 +28,7 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [contactsOpen, setContactsOpen] = useState(false)
+  const [pendingChatPerson, setPendingChatPerson] = useState<Person | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -78,6 +80,13 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
   async function handleConversationCreated(id: string, title: string) {
     setActiveConversationId(id)
     fetchConversations()
+  }
+
+  function handleChatWithPerson(person: Person) {
+    // Close contacts modal and start a new chat focused on this person
+    setContactsOpen(false)
+    setPendingChatPerson(person)
+    setActiveConversationId(null) // Start fresh conversation
   }
 
   return (
@@ -151,6 +160,8 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
         <ChatView
           conversationId={activeConversationId}
           onConversationCreated={handleConversationCreated}
+          pendingChatPerson={pendingChatPerson}
+          onClearPendingPerson={() => setPendingChatPerson(null)}
         />
       </div>
 
@@ -158,6 +169,7 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
       <ContactsManager
         isOpen={contactsOpen}
         onClose={() => setContactsOpen(false)}
+        onChatWithPerson={handleChatWithPerson}
       />
     </div>
   )
