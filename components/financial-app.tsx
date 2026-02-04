@@ -21,11 +21,12 @@ interface Conversation {
 
 interface FinancialAppProps {
   userEmail: string
+  initialConversationId?: string
 }
 
-export function FinancialApp({ userEmail }: FinancialAppProps) {
+export function FinancialApp({ userEmail, initialConversationId }: FinancialAppProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(initialConversationId || null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [contactsOpen, setContactsOpen] = useState(false)
   const [pendingChatPerson, setPendingChatPerson] = useState<Person | null>(null)
@@ -50,11 +51,13 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
     // Just reset to home view - conversation will be created on first message
     setActiveConversationId(null)
     setSidebarOpen(false)
+    router.push("/")
   }
 
   async function handleSelectConversation(id: string) {
     setActiveConversationId(id)
     setSidebarOpen(false)
+    router.push(`/chat/${id}`)
   }
 
   async function handleDeleteConversation(id: string) {
@@ -80,6 +83,7 @@ export function FinancialApp({ userEmail }: FinancialAppProps) {
   async function handleConversationCreated(id: string, title: string) {
     setActiveConversationId(id)
     fetchConversations()
+    router.push(`/chat/${id}`)
   }
 
   function handleChatWithPerson(person: Person) {

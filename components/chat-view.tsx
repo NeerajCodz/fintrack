@@ -51,14 +51,10 @@ function getMessageText(message: {
   content?: string
   role?: string
 }): string {
-  console.log("[v0] Processing message role:", message.role, "parts count:", message.parts?.length)
-  
   if (message.parts && Array.isArray(message.parts)) {
     const textParts: string[] = []
     
     for (const p of message.parts) {
-      console.log("[v0] Part:", p.type, "state:", (p as { state?: string }).state)
-      
       // Handle text parts
       if (p.type === "text" && typeof p.text === "string" && p.text.trim()) {
         textParts.push(p.text)
@@ -67,25 +63,26 @@ function getMessageText(message: {
       // Handle tool-invocation with output-available state (tool has finished)
       if (p.type === "tool-invocation") {
         const invocation = p as { state?: string; result?: unknown; output?: unknown }
-        console.log("[v0] Tool invocation state:", invocation.state)
         
         if (invocation.state === "output-available") {
-          const result = (invocation.result || invocation.output) as { message?: string; success?: boolean; error?: string }
-          console.log("[v0] Tool output:", JSON.stringify(result).substring(0, 300))
-          if (result?.message) {
+          const result = (invocation.result || invocation.output) as { response?: string; message?: string; success?: boolean; error?: string }
+          // Check for 'response' first (our custom field), then 'message'
+          if (result?.response) {
+            textParts.push(result.response)
+          } else if (result?.message) {
             textParts.push(result.message)
           } else if (result?.error) {
             textParts.push(`Error: ${result.error}`)
-          } else if (result?.success) {
-            textParts.push("Action completed successfully.")
           }
         }
       }
       
       // Handle tool-result / tool-output parts (alternate format)
       if ((p.type === "tool-result" || p.type === "tool-output")) {
-        const result = (p.result || p.output) as { message?: string; success?: boolean; error?: string }
-        if (result?.message) {
+        const result = (p.result || p.output) as { response?: string; message?: string; success?: boolean; error?: string }
+        if (result?.response) {
+          textParts.push(result.response)
+        } else if (result?.message) {
           textParts.push(result.message)
         } else if (result?.error) {
           textParts.push(`Error: ${result.error}`)

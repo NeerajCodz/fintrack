@@ -198,11 +198,10 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
 
               return {
                 success: true,
-                message: `---\nACTION: Logged your expense\nAMOUNT: ${formatCurrency(amount)}\nCATEGORY: ${category}${merchant ? `\nMERCHANT: ${merchant}` : ""}${description ? `\nDETAILS: ${description}` : ""}\nSTATUS: SUCCESS - Saved to database${coaching ? `\n\n${coaching}` : ""}\n---`,
-                transaction_id: transaction.id,
+                response: `Logged! ${formatCurrency(amount)} spent on ${category}${merchant ? ` at ${merchant}` : ""}.${coaching}`,
               }
             } catch (err) {
-              console.log("[v0] log_expense error:", err)
+              // Error logged
               return { success: false, error: String(err) }
             }
           },
@@ -261,13 +260,11 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 success: true,
                 is_new_contact: isNewContact,
                 person_name: person.name,
-                amount,
-                previous_balance: previousBalance,
                 new_balance: newBalance,
-                message: `---\nCONTACT: ${person.name} - ${isNewContact ? "New Contact Created" : "Existing Contact"}\nACTION: ${person.name} paid for you\nAMOUNT: ${formatCurrency(amount)}${description ? ` (${description})` : ""}${merchant ? `\nWHERE: ${merchant}` : ""}\nPREVIOUS BALANCE: ${previousBalance === 0 ? "No previous balance" : previousBalance > 0 ? `You owed ${person.name} ${formatCurrency(previousBalance)}` : `${person.name} owed you ${formatCurrency(Math.abs(previousBalance))}`}\nNEW BALANCE: You owe ${person.name} ${formatCurrency(newBalance)}\nSTATUS: SUCCESS - Saved to database\n---`,
+                response: `Updated! ${isNewContact ? "New contact created: " : ""}${person.name} paid ${formatCurrency(amount)}${description ? ` for ${description}` : ""}. You now owe ${person.name} ${formatCurrency(newBalance)}.`,
               }
             } catch (err) {
-              console.log("[v0] log_expense_other_paid error:", err)
+              // Error logged
               return { success: false, error: String(err) }
             }
           },
@@ -323,10 +320,8 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 success: true,
                 is_new_contact: isNewContact,
                 person_name: person.name,
-                amount,
-                previous_balance: previousBalance,
                 new_balance: newBalance,
-                message: `---\nCONTACT: ${person.name} - ${isNewContact ? "New Contact Created" : "Existing Contact"}\nACTION: Recorded money you lent/paid for them\nAMOUNT: ${formatCurrency(amount)}${description ? ` (${description})` : ""}\nPREVIOUS BALANCE: ${previousBalance === 0 ? "No previous balance" : previousBalance > 0 ? `You owed ${person.name} ${formatCurrency(previousBalance)}` : `${person.name} owed you ${formatCurrency(Math.abs(previousBalance))}`}\nNEW BALANCE: ${person.name} owes you ${formatCurrency(Math.abs(newBalance))}\nSTATUS: SUCCESS - Saved to database\n---`,
+                response: `Updated! ${isNewContact ? "New contact created: " : ""}${person.name} now owes you ${formatCurrency(Math.abs(newBalance))}${description ? ` (${description})` : ""}.`,
               }
             } catch (err) {
               console.log("[v0] log_lent_money error:", err)
@@ -365,10 +360,8 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
               return {
                 success: true,
                 person_name: person.name,
-                amount_received: receiveAmount,
-                previous_balance: person.running_balance,
                 new_balance: newBalance,
-                message: `---\nCONTACT: ${person.name} - Existing Contact\nACTION: Received payment from ${person.name}\nAMOUNT: ${formatCurrency(receiveAmount)}\nPREVIOUS BALANCE: ${person.name} owed you ${formatCurrency(Math.abs(person.running_balance))}\nNEW BALANCE: ${newBalance === 0 ? "All settled! You're square." : newBalance < 0 ? `${person.name} still owes you ${formatCurrency(Math.abs(newBalance))}` : `You now owe ${person.name} ${formatCurrency(newBalance)}`}\nSTATUS: SUCCESS - Payment recorded\n---`,
+                response: `Received! ${person.name} paid you ${formatCurrency(receiveAmount)}. ${newBalance === 0 ? "All settled - you're square!" : newBalance < 0 ? `${person.name} still owes you ${formatCurrency(Math.abs(newBalance))}.` : `You now owe ${person.name} ${formatCurrency(newBalance)}.`}`,
               }
             } catch (err) {
               console.log("[v0] receive_payment error:", err)
@@ -414,10 +407,8 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
               return {
                 success: true,
                 person_name: person.name,
-                amount_settled: settleAmount,
-                previous_balance: previousBalance,
                 new_balance: remaining,
-                message: `---\nCONTACT: ${person.name} - Existing Contact\nACTION: You paid ${person.name} back\nAMOUNT: ${formatCurrency(settleAmount)}\nPREVIOUS BALANCE: You owed ${person.name} ${formatCurrency(previousBalance)}\nNEW BALANCE: ${remaining === 0 ? "All settled! You're square." : `You still owe ${person.name} ${formatCurrency(Math.abs(remaining))}`}\nSTATUS: SUCCESS - Payment recorded\n---`,
+                response: `Paid! You paid ${person.name} ${formatCurrency(settleAmount)}. ${remaining === 0 ? "All settled - you're square!" : `You still owe ${person.name} ${formatCurrency(Math.abs(remaining))}.`}`,
               }
             } catch (err) {
               console.log("[v0] settle_due error:", err)
@@ -470,7 +461,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
               await createNote(userId, `Bill added: ${name} - ${formatCurrency(amount)} due ${parsedDate}`, `bill:${bill.id}`)
               return {
                 success: true,
-                message: `Bill tracked: ${name} for ${formatCurrency(amount)}, due ${parsedDate}.${recurring ? ` Recurring ${recurrence_pattern || "monthly"}.` : ""} Don't miss it.`,
+                response: `Bill added! ${name}: ${formatCurrency(amount)} due ${parsedDate}.${recurring ? ` Recurring ${recurrence_pattern || "monthly"}.` : ""}`,
               }
             } catch (err) {
               console.log("[v0] create_bill error:", err)
@@ -493,29 +484,22 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 return {
                   success: false,
                   found: false,
-                  message: `No contact found with name "${person_name}". Would you like to create a new contact?`,
-                  available_contacts: allPeople.map((p) => p.name),
+                  response: `No contact found: "${person_name}". Would you like to add them?`,
                 }
               }
 
-              // Get dues related to this person
-              const dues = await getPendingDues(userId)
-              const personDues = dues.filter((d) => d.person_id === person.id)
+              const balanceText = person.running_balance === 0 
+                ? "All settled - no balance" 
+                : person.running_balance > 0 
+                  ? `You owe ${person.name} ${formatCurrency(person.running_balance)}` 
+                  : `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`
 
               return {
                 success: true,
                 found: true,
-                person: {
-                  name: person.name,
-                  relationship: person.relationship,
-                  email: person.email,
-                  phone: person.phone,
-                  running_balance: person.running_balance,
-                  balance_direction: person.running_balance > 0 ? "you_owe_them" : person.running_balance < 0 ? "they_owe_you" : "settled",
-                  created_at: person.created_at,
-                },
-                pending_dues: personDues.length,
-                message: `**Contact Found: ${person.name}**\n\nRelationship: ${person.relationship || "Not set"}\nBalance: ${person.running_balance === 0 ? "All settled" : person.running_balance > 0 ? `You owe ${person.name} ${formatCurrency(person.running_balance)}` : `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`}\nPending transactions: ${personDues.length}\n\nWhat would you like to do with ${person.name}?`,
+                name: person.name,
+                balance: person.running_balance,
+                response: `${person.name}: ${balanceText}`,
               }
             } catch (err) {
               console.log("[v0] get_person_info error:", err)
@@ -530,18 +514,23 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           execute: async () => {
             try {
               const dashboard = await getDashboardData(userId)
+              const youOweTotal = dashboard.outstandingDues.youOwe.reduce((sum, d) => sum + d.amount, 0)
+              const owedToYouTotal = dashboard.outstandingDues.owedToYou.reduce((sum, d) => sum + d.amount, 0)
+              
+              let balanceSummary = ""
+              if (dashboard.outstandingDues.youOwe.length > 0) {
+                balanceSummary += `You owe: ${dashboard.outstandingDues.youOwe.map(d => `${d.person} ${formatCurrency(d.amount)}`).join(", ")}. `
+              }
+              if (dashboard.outstandingDues.owedToYou.length > 0) {
+                balanceSummary += `Owed to you: ${dashboard.outstandingDues.owedToYou.map(d => `${d.person} ${formatCurrency(d.amount)}`).join(", ")}.`
+              }
+              if (!balanceSummary) balanceSummary = "No outstanding balances."
+              
               return {
                 success: true,
-                data: {
-                  total_spent_this_month: dashboard.totalSpentThisMonth,
-                  top_category: dashboard.topCategory,
-                  you_owe: dashboard.outstandingDues.youOwe,
-                  owed_to_you: dashboard.outstandingDues.owedToYou,
-                  upcoming_bills: dashboard.upcomingBills.map((b) => ({ name: b.name, amount: b.amount, due_date: b.due_date })),
-                },
+                response: `Spent this month: ${formatCurrency(dashboard.totalSpentThisMonth)}${dashboard.topCategory ? ` (mostly ${dashboard.topCategory.category})` : ""}. ${balanceSummary}`,
               }
             } catch (err) {
-              console.log("[v0] get_dashboard error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -553,9 +542,16 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
           execute: async () => {
             try {
               const dashboard = await getDashboardData(userId)
-              return { success: true, you_owe: dashboard.outstandingDues.youOwe, owed_to_you: dashboard.outstandingDues.owedToYou }
+              let response = ""
+              if (dashboard.outstandingDues.youOwe.length > 0) {
+                response += `You owe: ${dashboard.outstandingDues.youOwe.map(d => `${d.person} ${formatCurrency(d.amount)}`).join(", ")}. `
+              }
+              if (dashboard.outstandingDues.owedToYou.length > 0) {
+                response += `Owed to you: ${dashboard.outstandingDues.owedToYou.map(d => `${d.person} ${formatCurrency(d.amount)}`).join(", ")}.`
+              }
+              if (!response) response = "No outstanding balances - all settled!"
+              return { success: true, response }
             } catch (err) {
-              console.log("[v0] get_dues error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -563,17 +559,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
 
         },
       maxSteps: 5,
-      onStepFinish: async ({ stepType, toolResults, text }) => {
-        console.log("[v0] Step finished:", stepType)
-        if (toolResults && toolResults.length > 0) {
-          console.log("[v0] Tool results:", JSON.stringify(toolResults).substring(0, 500))
-        }
-        if (text) {
-          console.log("[v0] Text generated:", text.substring(0, 200))
-        }
-      },
       onFinish: async ({ response }) => {
-        console.log("[v0] onFinish called, response messages:", response.messages?.length)
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
