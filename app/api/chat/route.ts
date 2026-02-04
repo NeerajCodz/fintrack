@@ -100,7 +100,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     console.log("[v0] Converted messages:", JSON.stringify(modelMessages).substring(0, 500))
     
     const result = streamText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq("llama-3.1-70b-versatile"),
       system: systemPrompt,
       messages: modelMessages,
       tools: {
@@ -124,37 +124,42 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
               .describe("Brief description of what was purchased"),
           }),
           execute: async ({ amount, category, merchant, description }) => {
-            const transaction = await createTransaction(userId, {
-              amount,
-              category,
-              description: description || undefined,
-              merchant: merchant || undefined,
-              paid_by: "user",
-            })
+            try {
+              const transaction = await createTransaction(userId, {
+                amount,
+                category,
+                description: description || undefined,
+                merchant: merchant || undefined,
+                paid_by: "user",
+              })
 
-            if (!transaction) {
-              return { success: false, error: "Failed to store transaction" }
-            }
+              if (!transaction) {
+                return { success: false, error: "Failed to store transaction" }
+              }
 
-            await createNote(
-              userId,
-              `Spent ${formatCurrency(amount)} on ${category}`,
-              `transaction:${transaction.id}`
-            )
+              await createNote(
+                userId,
+                `Spent ${formatCurrency(amount)} on ${category}`,
+                `transaction:${transaction.id}`
+              )
 
-            // Coach response based on amount
-            let coaching = ""
-            if (amount > 100) {
-              coaching = " That's a significant expense. Track it carefully."
-            }
-            if (category === "food" && amount > 50) {
-              coaching = " High food spending. Consider meal planning."
-            }
+              // Coach response based on amount
+              let coaching = ""
+              if (amount > 100) {
+                coaching = " That's a significant expense. Track it carefully."
+              }
+              if (category === "food" && amount > 50) {
+                coaching = " High food spending. Consider meal planning."
+              }
 
-            return {
-              success: true,
-              message: `Logged: ${formatCurrency(amount)} on ${category}${merchant ? ` at ${merchant}` : ""}.${coaching}`,
-              transaction_id: transaction.id,
+              return {
+                success: true,
+                message: `Logged: ${formatCurrency(amount)} on ${category}${merchant ? ` at ${merchant}` : ""}.${coaching}`,
+                transaction_id: transaction.id,
+              }
+            } catch (err) {
+              console.log("[v0] log_expense error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
@@ -169,274 +174,228 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
             merchant: z.string().nullable().describe("Where"),
             description: z.string().nullable().describe("What for"),
           }),
-          execute: async ({
-            person_name,
-            amount,
-            category,
-            merchant,
-            description,
-          }) => {
-            const person = await getOrCreatePerson(userId, person_name)
-            if (!person) {
-              return { success: false, error: "Failed to create person record" }
-            }
-
-            const transaction = await createTransaction(userId, {
-              amount,
-              category,
-              description: description || undefined,
-              merchant: merchant || undefined,
-              paid_by: person.id,
-            })
-
-            if (!transaction) {
-              return { success: false, error: "Failed to store transaction" }
-            }
-
-            const due = await createDue(userId, {
-              person_id: person.id,
-              transaction_id: transaction.id,
-              amount,
-            })
-
-            if (!due) {
-              return {
-                success: false,
-                error: "Transaction logged but due creation failed",
+          execute: async ({ person_name, amount, category, merchant, description }) => {
+            try {
+              const person = await getOrCreatePerson(userId, person_name)
+              if (!person) {
+                return { success: false, error: "Failed to create person record" }
               }
-            }
 
-            await updatePersonBalance(person.id, amount)
+              const transaction = await createTransaction(userId, {
+                amount,
+                category,
+                description: description || undefined,
+                merchant: merchant || undefined,
+                paid_by: person.id,
+              })
 
-            await createNote(
-              userId,
-              `${person_name} paid ${formatCurrency(amount)} - you owe`,
-              `transaction:${transaction.id}`
-            )
+              if (!transaction) {
+                return { success: false, error: "Failed to store transaction" }
+              }
 
-            const newBalance = person.running_balance + amount
+              const due = await createDue(userId, {
+                person_id: person.id,
+                transaction_id: transaction.id,
+                amount,
+              })
 
-            return {
-              success: true,
-              message: `Logged: ${person_name} paid ${formatCurrency(amount)}${merchant ? ` at ${merchant}` : ""}. You now owe ${person_name} ${formatCurrency(newBalance)}. Don't forget to settle up.`,
+              if (!due) {
+                return { success: false, error: "Transaction logged but due creation failed" }
+              }
+
+              await updatePersonBalance(person.id, amount)
+              await createNote(userId, `${person_name} paid ${formatCurrency(amount)} - you owe`, `transaction:${transaction.id}`)
+
+              const newBalance = person.running_balance + amount
+              return {
+                success: true,
+                message: `Logged: ${person_name} paid ${formatCurrency(amount)}${merchant ? ` at ${merchant}` : ""}. You now owe ${person_name} ${formatCurrency(newBalance)}. Don't forget to settle up.`,
+              }
+            } catch (err) {
+              console.log("[v0] log_expense_other_paid error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
 
         settle_due: tool({
-          description:
-            "Settle a due/debt with someone. Use when user says they paid back someone.",
+          description: "Settle a due/debt with someone. Use when user says they paid back someone.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of person being paid back"),
-            amount: z
-              .number()
-              .nullable()
-              .describe("Amount being settled. If null, settle all dues."),
+            amount: z.number().nullable().describe("Amount being settled. If null, settle all dues."),
           }),
           execute: async ({ person_name, amount }) => {
-            const allPeople = await getPeople(userId)
-            const person = allPeople.find(
-              (p) => p.name.toLowerCase() === person_name.toLowerCase()
-            )
+            try {
+              const allPeople = await getPeople(userId)
+              const person = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase())
 
-            if (!person) {
-              return {
-                success: false,
-                error: `No record of ${person_name}. Check the name.`,
+              if (!person) {
+                return { success: false, error: `No record of ${person_name}. Check the name.` }
               }
-            }
 
-            const pendingDues = await getPendingDues(userId)
-            const duesWithPerson = pendingDues.filter(
-              (d) => d.person_id === person.id
-            )
+              const pendingDues = await getPendingDues(userId)
+              const duesWithPerson = pendingDues.filter((d) => d.person_id === person.id)
 
-            if (duesWithPerson.length === 0) {
-              return {
-                success: false,
-                error: `No pending dues with ${person_name}.`,
+              if (duesWithPerson.length === 0) {
+                return { success: false, error: `No pending dues with ${person_name}.` }
               }
-            }
 
-            const settleAmount =
-              amount || duesWithPerson.reduce((sum, d) => sum + d.amount, 0)
+              const settleAmount = amount || duesWithPerson.reduce((sum, d) => sum + d.amount, 0)
 
-            for (const due of duesWithPerson) {
-              await settleDue(due.id, amount || undefined)
-            }
+              for (const due of duesWithPerson) {
+                await settleDue(due.id, amount || undefined)
+              }
 
-            await updatePersonBalance(person.id, -settleAmount)
+              await updatePersonBalance(person.id, -settleAmount)
+              await createNote(userId, `Settled ${formatCurrency(settleAmount)} with ${person_name}`, `person:${person.id}`)
 
-            await createNote(
-              userId,
-              `Settled ${formatCurrency(settleAmount)} with ${person_name}`,
-              `person:${person.id}`
-            )
-
-            const remaining = person.running_balance - settleAmount
-
-            return {
-              success: true,
-              message: `Settled ${formatCurrency(settleAmount)} with ${person_name}. ${
-                remaining !== 0
-                  ? `Remaining balance: ${formatCurrency(Math.abs(remaining))}.`
-                  : "You're square."
-              } Good job clearing dues.`,
+              const remaining = person.running_balance - settleAmount
+              return {
+                success: true,
+                message: `Settled ${formatCurrency(settleAmount)} with ${person_name}. ${remaining !== 0 ? `Remaining balance: ${formatCurrency(Math.abs(remaining))}.` : "You're square."} Good job clearing dues.`,
+              }
+            } catch (err) {
+              console.log("[v0] settle_due error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
 
         create_bill: tool({
-          description:
-            "Create a bill reminder. Use for rent, utilities, subscriptions, EMIs.",
+          description: "Create a bill reminder. Use for rent, utilities, subscriptions, EMIs.",
           inputSchema: z.object({
             name: z.string().describe("Bill name (rent, electricity, Netflix)"),
             amount: z.number().describe("Bill amount"),
-            due_date: z
-              .string()
-              .describe("Due date in YYYY-MM-DD format or day of month"),
+            due_date: z.string().describe("Due date in YYYY-MM-DD format or day of month"),
             recurring: z.boolean().describe("Is this a recurring bill?"),
-            recurrence_pattern: z
-              .string()
-              .nullable()
-              .describe("monthly, weekly, yearly"),
+            recurrence_pattern: z.string().nullable().describe("monthly, weekly, yearly"),
           }),
-          execute: async ({
-            name,
-            amount,
-            due_date,
-            recurring,
-            recurrence_pattern,
-          }) => {
-            // Parse due_date - could be just a day number
-            let parsedDate = due_date
-            if (/^\d{1,2}$/.test(due_date)) {
-              const day = parseInt(due_date).toString().padStart(2, "0")
-              const now = new Date()
-              const currentDay = now.getDate()
-              let month = now.getMonth()
-              let year = now.getFullYear()
+          execute: async ({ name, amount, due_date, recurring, recurrence_pattern }) => {
+            try {
+              let parsedDate = due_date
+              if (/^\d{1,2}$/.test(due_date)) {
+                const day = parseInt(due_date).toString().padStart(2, "0")
+                const now = new Date()
+                const currentDay = now.getDate()
+                let month = now.getMonth()
+                let year = now.getFullYear()
 
-              if (parseInt(due_date) <= currentDay) {
-                month += 1
-                if (month > 11) {
-                  month = 0
-                  year += 1
+                if (parseInt(due_date) <= currentDay) {
+                  month += 1
+                  if (month > 11) {
+                    month = 0
+                    year += 1
+                  }
                 }
+                parsedDate = `${year}-${(month + 1).toString().padStart(2, "0")}-${day}`
               }
 
-              parsedDate = `${year}-${(month + 1).toString().padStart(2, "0")}-${day}`
-            }
+              const bill = await createBill(userId, {
+                name,
+                amount,
+                due_date: parsedDate,
+                recurring,
+                recurrence_pattern: recurrence_pattern || undefined,
+              })
 
-            const bill = await createBill(userId, {
-              name,
-              amount,
-              due_date: parsedDate,
-              recurring,
-              recurrence_pattern: recurrence_pattern || undefined,
-            })
+              if (!bill) {
+                return { success: false, error: "Failed to create bill" }
+              }
 
-            if (!bill) {
-              return { success: false, error: "Failed to create bill" }
-            }
-
-            await createNote(
-              userId,
-              `Bill added: ${name} - ${formatCurrency(amount)} due ${parsedDate}`,
-              `bill:${bill.id}`
-            )
-
-            return {
-              success: true,
-              message: `Bill tracked: ${name} for ${formatCurrency(amount)}, due ${parsedDate}.${recurring ? ` Recurring ${recurrence_pattern || "monthly"}.` : ""} Don't miss it.`,
+              await createNote(userId, `Bill added: ${name} - ${formatCurrency(amount)} due ${parsedDate}`, `bill:${bill.id}`)
+              return {
+                success: true,
+                message: `Bill tracked: ${name} for ${formatCurrency(amount)}, due ${parsedDate}.${recurring ? ` Recurring ${recurrence_pattern || "monthly"}.` : ""} Don't miss it.`,
+              }
+            } catch (err) {
+              console.log("[v0] create_bill error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
 
         get_dashboard: tool({
-          description:
-            "Get the user's financial dashboard/summary. Use when they ask for overview, summary, dashboard, or status.",
+          description: "Get the user's financial dashboard/summary. Use when they ask for overview, summary, dashboard, or status.",
           inputSchema: z.object({}),
           execute: async () => {
-            const dashboard = await getDashboardData(userId)
-
-            return {
-              success: true,
-              data: {
-                total_spent_this_month: dashboard.totalSpentThisMonth,
-                top_category: dashboard.topCategory,
-                you_owe: dashboard.outstandingDues.youOwe,
-                owed_to_you: dashboard.outstandingDues.owedToYou,
-                upcoming_bills: dashboard.upcomingBills.map((b) => ({
-                  name: b.name,
-                  amount: b.amount,
-                  due_date: b.due_date,
-                })),
-              },
+            try {
+              const dashboard = await getDashboardData(userId)
+              return {
+                success: true,
+                data: {
+                  total_spent_this_month: dashboard.totalSpentThisMonth,
+                  top_category: dashboard.topCategory,
+                  you_owe: dashboard.outstandingDues.youOwe,
+                  owed_to_you: dashboard.outstandingDues.owedToYou,
+                  upcoming_bills: dashboard.upcomingBills.map((b) => ({ name: b.name, amount: b.amount, due_date: b.due_date })),
+                },
+              }
+            } catch (err) {
+              console.log("[v0] get_dashboard error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
 
         get_dues: tool({
-          description:
-            "Get all outstanding dues - who owes whom. Use when user asks about debts or balances.",
+          description: "Get all outstanding dues - who owes whom. Use when user asks about debts or balances.",
           inputSchema: z.object({}),
           execute: async () => {
-            const dashboard = await getDashboardData(userId)
-            return {
-              success: true,
-              you_owe: dashboard.outstandingDues.youOwe,
-              owed_to_you: dashboard.outstandingDues.owedToYou,
+            try {
+              const dashboard = await getDashboardData(userId)
+              return { success: true, you_owe: dashboard.outstandingDues.youOwe, owed_to_you: dashboard.outstandingDues.owedToYou }
+            } catch (err) {
+              console.log("[v0] get_dues error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
 
         get_person_info: tool({
-          description:
-            "Get detailed info about a specific person/contact. Use when user mentions @name or asks about someone specific.",
+          description: "Get detailed info about a specific person/contact. Use when user mentions @name or asks about someone specific.",
           inputSchema: z.object({
             person_name: z.string().describe("Name of the person to look up (without the @ symbol)"),
           }),
           execute: async ({ person_name }) => {
-            const allPeople = await getPeople(userId)
-            const person = allPeople.find(
-              (p) => p.name.toLowerCase() === person_name.toLowerCase().replace("@", "")
-            )
+            try {
+              const allPeople = await getPeople(userId)
+              const person = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase().replace("@", ""))
 
-            if (!person) {
-              return {
-                success: false,
-                error: `No contact found with name "${person_name}". You can add them by logging an expense involving them.`,
+              if (!person) {
+                return { success: false, error: `No contact found with name "${person_name}". You can add them by logging an expense involving them.` }
               }
-            }
 
-            const pendingDues = await getPendingDues(userId)
-            const duesWithPerson = pendingDues.filter((d) => d.person_id === person.id)
+              const pendingDues = await getPendingDues(userId)
+              const duesWithPerson = pendingDues.filter((d) => d.person_id === person.id)
 
-            let balanceDescription = ""
-            if (person.running_balance > 0) {
-              balanceDescription = `You owe ${person.name} ${formatCurrency(person.running_balance)}`
-            } else if (person.running_balance < 0) {
-              balanceDescription = `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`
-            } else {
-              balanceDescription = `You're all square with ${person.name}`
-            }
+              let balanceDescription = ""
+              if (person.running_balance > 0) {
+                balanceDescription = `You owe ${person.name} ${formatCurrency(person.running_balance)}`
+              } else if (person.running_balance < 0) {
+                balanceDescription = `${person.name} owes you ${formatCurrency(Math.abs(person.running_balance))}`
+              } else {
+                balanceDescription = `You're all square with ${person.name}`
+              }
 
-            return {
-              success: true,
-              person: {
-                name: person.name,
-                relationship: person.relationship || "Not set",
-                running_balance: person.running_balance,
-                balance_description: balanceDescription,
-                pending_dues_count: duesWithPerson.length,
-                created_at: person.created_at,
-              },
+              return {
+                success: true,
+                person: {
+                  name: person.name,
+                  relationship: person.relationship || "Not set",
+                  running_balance: person.running_balance,
+                  balance_description: balanceDescription,
+                  pending_dues_count: duesWithPerson.length,
+                  created_at: person.created_at,
+                },
+              }
+            } catch (err) {
+              console.log("[v0] get_person_info error:", err)
+              return { success: false, error: String(err) }
             }
           },
         }),
       },
-      maxSteps: 5,
+      maxSteps: 2,
       onFinish: async ({ response }) => {
         console.log("[v0] onFinish called, response messages:", response.messages?.length)
         // Save the conversation if we have a conversationId
