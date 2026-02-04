@@ -39,9 +39,23 @@ export async function POST(request: Request) {
     console.log("[v0] Messages count:", messages?.length, "ConversationId:", conversationId)
     console.log("[v0] Last message:", messages?.[messages?.length - 1]?.content?.substring(0, 50))
 
-    // Get dashboard data for context
-    const dashboardData = await getDashboardData(userId)
-    const people = await getPeople(userId)
+    // Get dashboard data for context - wrapped in try-catch for resilience
+    let dashboardData = {
+      totalSpentThisMonth: 0,
+      topCategory: null as { category: string; total: number } | null,
+      outstandingDues: { youOwe: [] as { person: string; amount: number }[], owedToYou: [] as { person: string; amount: number }[] },
+      upcomingBills: [] as { name: string; amount: number; due_date: string }[],
+    }
+    let people: { name: string; running_balance: number }[] = []
+    
+    try {
+      dashboardData = await getDashboardData(userId)
+      people = await getPeople(userId)
+      console.log("[v0] Dashboard data loaded, people count:", people.length)
+    } catch (dbError) {
+      console.error("[v0] Error loading dashboard data:", dbError)
+      // Continue with empty data - the AI can still respond
+    }
 
     const systemPrompt = `You are FinTrack AI - a blunt, precise financial tracking assistant. You are NOT friendly by default. You are skeptical and corrective.
 
@@ -73,11 +87,15 @@ BILL EXAMPLES:
 When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
 
     console.log("[v0] Calling streamText with model openai/gpt-4o-mini")
+    console.log("[v0] Messages to send:", JSON.stringify(messages).substring(0, 500))
   
     const result = streamText({
       model: "openai/gpt-4o-mini",
       system: systemPrompt,
-      messages,
+      messages: messages.map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
       tools: {
         log_expense: tool({
           description:
@@ -423,7 +441,16 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
     console.log("[v0] Returning data stream response")
     return result.toDataStreamResponse()
   } catch (error) {
-    console.error("[v0] Error in chat API:", error)
-    return Response.json({ error: "Internal server error" }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorStack = error instanceof Error ? error.stack : undefined
+    const errorName = error instanceof Error ? error.name : "Unknown"
+    console.error("[v0] Error in chat API:", errorName, errorMessage)
+    console.error("[v0] Full error:", error)
+    console.error("[v0] Stack:", errorStack)
+    return Response.json({ 
+      error: errorMessage,
+      name: errorName,
+      details: errorStack?.split("\n").slice(0, 5).join("\n")
+    }, { status: 500 })
   }
 }
