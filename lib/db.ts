@@ -335,7 +335,6 @@ export async function createNote(
 // ============ DASHBOARD ============
 
 export async function getDashboardData(userId: string): Promise<DashboardData> {
-  console.log("[v0] getDashboardData called for user:", userId)
   const supabase = await createClient()
 
   // Get current month boundaries
@@ -347,22 +346,14 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     .toISOString()
     .split("T")[0]
 
-  console.log("[v0] Date range:", startOfMonth, "to", endOfMonth)
-
   // Total spent this month (where user paid)
-  const { data: monthTransactions, error: txError } = await supabase
+  const { data: monthTransactions } = await supabase
     .from("transactions")
     .select("amount, category")
     .eq("user_id", userId)
     .eq("paid_by", "user")
     .gte("date", startOfMonth)
     .lte("date", endOfMonth)
-    
-  if (txError) {
-    console.error("[v0] Error fetching transactions:", txError)
-  }
-  
-  console.log("[v0] Month transactions count:", monthTransactions?.length || 0)
 
   const totalSpentThisMonth =
     monthTransactions?.reduce((sum, t) => sum + t.amount, 0) || 0
@@ -378,17 +369,11 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   )[0]
 
   // Outstanding dues
-  const { data: people, error: peopleError } = await supabase
+  const { data: people } = await supabase
     .from("people")
     .select("name, running_balance")
     .eq("user_id", userId)
     .neq("running_balance", 0)
-    
-  if (peopleError) {
-    console.error("[v0] Error fetching people:", peopleError)
-  }
-  
-  console.log("[v0] People with non-zero balance:", people?.length || 0)
 
   const youOwe: { person: string; amount: number }[] = []
   const owedToYou: { person: string; amount: number }[] = []

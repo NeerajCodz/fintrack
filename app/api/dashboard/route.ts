@@ -15,8 +15,7 @@ export async function GET() {
   try {
     const dashboard = await getDashboardData(user.id)
     return Response.json({ data: dashboard })
-  } catch (error) {
-    console.error("[v0] Dashboard error:", error)
+  } catch {
     return Response.json({ error: "Failed to load dashboard" }, { status: 500 })
   }
 }

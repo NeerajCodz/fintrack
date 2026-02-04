@@ -16,8 +16,6 @@ import {
 import { formatCurrency } from "@/lib/financial-utils"
 
 export async function POST(request: Request) {
-  console.log("[v0] Chat API called")
-  
   try {
     const supabase = await createClient()
 
@@ -25,19 +23,13 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    console.log("[v0] User:", user?.id)
-
     if (!user) {
-      console.log("[v0] Not authenticated")
       return Response.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const body = await request.json()
     const { messages, conversationId } = body
     const userId = user.id
-  
-    console.log("[v0] Messages count:", messages?.length, "ConversationId:", conversationId)
-    console.log("[v0] Last message:", messages?.[messages?.length - 1]?.content?.substring(0, 50))
 
     // Get dashboard data for context - wrapped in try-catch for resilience
     let dashboardData = {
@@ -51,9 +43,7 @@ export async function POST(request: Request) {
     try {
       dashboardData = await getDashboardData(userId)
       people = await getPeople(userId)
-      console.log("[v0] Dashboard data loaded, people count:", people.length)
-    } catch (dbError) {
-      console.error("[v0] Error loading dashboard data:", dbError)
+    } catch {
       // Continue with empty data - the AI can still respond
     }
 
@@ -86,9 +76,6 @@ BILL EXAMPLES:
 
 When users ask for dashboard/summary, use the get_dashboard tool and format it nicely.`
 
-    console.log("[v0] Calling streamText with model openai/gpt-4o-mini")
-    console.log("[v0] Messages to send:", JSON.stringify(messages).substring(0, 500))
-  
     const result = streamText({
       model: "openai/gpt-4o-mini",
       system: systemPrompt,
@@ -386,7 +373,6 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
       },
       maxSteps: 5,
       onFinish: async ({ response }) => {
-        console.log("[v0] onFinish called, response messages:", response.messages?.length)
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
@@ -438,19 +424,9 @@ When users ask for dashboard/summary, use the get_dashboard tool and format it n
       },
     })
 
-    console.log("[v0] Returning data stream response")
-    return result.toDataStreamResponse()
+    return result.toUIMessageStreamResponse()
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    const errorStack = error instanceof Error ? error.stack : undefined
-    const errorName = error instanceof Error ? error.name : "Unknown"
-    console.error("[v0] Error in chat API:", errorName, errorMessage)
-    console.error("[v0] Full error:", error)
-    console.error("[v0] Stack:", errorStack)
-    return Response.json({ 
-      error: errorMessage,
-      name: errorName,
-      details: errorStack?.split("\n").slice(0, 5).join("\n")
-    }, { status: 500 })
+    return Response.json({ error: errorMessage }, { status: 500 })
   }
 }

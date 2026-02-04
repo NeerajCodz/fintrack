@@ -76,8 +76,8 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
         setMessages(data.messages || [])
         setCurrentConversationId(convId)
       }
-    } catch (error) {
-      console.error("[v0] Failed to load messages:", error)
+    } catch {
+      // Silently fail - conversation might not exist
     }
   }, [])
 
@@ -129,8 +129,8 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
           setCurrentConversationId(convId)
           onConversationCreated(data.conversation.id, data.conversation.title)
         }
-      } catch (error) {
-        console.error("[v0] Failed to create conversation:", error)
+      } catch {
+        // Continue without conversation ID
       }
     }
 
@@ -152,7 +152,6 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
 
       if (!response.ok) {
         const errorData = await response.text()
-        console.log("[v0] Response error:", response.status, errorData)
         throw new Error(`HTTP ${response.status}: ${errorData}`)
       }
 
@@ -165,68 +164,53 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
       let fullContent = ""
       let buffer = ""
 
-      console.log("[v0] Starting stream read")
-
       while (true) {
         const { done, value } = await reader.read()
-        if (done) {
-          console.log("[v0] Stream done, final content length:", fullContent.length)
-          break
-        }
+        if (done) break
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split("\n")
-        buffer = lines.pop() || "" // Keep incomplete line in buffer
+        buffer = lines.pop() || ""
 
         for (const line of lines) {
           const trimmed = line.trim()
           if (!trimmed) continue
 
-          console.log("[v0] Received line:", trimmed.substring(0, 100))
-
-          // AI SDK data stream format: "0:" prefix for text chunks
-          if (trimmed.startsWith("0:")) {
+          // UI Message Stream format uses SSE with different event types
+          // Format: "data: {...json...}" or numbered prefixes like "0:", "f:", etc.
+          
+          // Handle SSE data format
+          if (trimmed.startsWith("data:")) {
+            const jsonStr = trimmed.slice(5).trim()
+            if (jsonStr === "[DONE]") continue
             try {
-              const data = JSON.parse(trimmed.slice(2))
-              console.log("[v0] Parsed 0: data:", typeof data, data?.substring?.(0, 50))
-              if (typeof data === "string") {
-                fullContent += data
+              const data = JSON.parse(jsonStr)
+              // Extract text from different message formats
+              if (data.type === "text-delta" && data.delta) {
+                fullContent += data.delta
                 setStreamingContent(fullContent)
-              }
-            } catch (e) {
-              console.log("[v0] Failed to parse 0: line:", e)
-            }
-          }
-          // Handle "e:" for errors
-          else if (trimmed.startsWith("e:")) {
-            try {
-              const data = JSON.parse(trimmed.slice(2))
-              console.log("[v0] Error in stream:", data)
-            } catch {
-              // Skip
-            }
-          }
-          // Handle "d:" for data
-          else if (trimmed.startsWith("d:")) {
-            try {
-              const data = JSON.parse(trimmed.slice(2))
-              console.log("[v0] Data chunk:", data)
-              if (data && typeof data.text === "string") {
+              } else if (data.type === "text" && data.text) {
                 fullContent += data.text
                 setStreamingContent(fullContent)
               }
             } catch {
+              // Skip invalid JSON
+            }
+          }
+          // Handle numbered prefix format (0: for text chunks)
+          else if (trimmed.startsWith("0:")) {
+            try {
+              const data = JSON.parse(trimmed.slice(2))
+              if (typeof data === "string") {
+                fullContent += data
+                setStreamingContent(fullContent)
+              }
+            } catch {
               // Skip
             }
           }
-          // Handle "f:" for finish
-          else if (trimmed.startsWith("f:")) {
-            console.log("[v0] Finish marker received")
-          }
         }
       }
-      
-      console.log("[v0] Final content:", fullContent.substring(0, 200))
 
       // Add assistant message
       if (fullContent) {
@@ -238,9 +222,7 @@ export function ChatView({ conversationId, onConversationCreated }: ChatViewProp
         setMessages((prev) => [...prev, assistantMessage])
       }
     } catch (error) {
-      console.error("[v0] Chat error:", error)
       const errorContent = error instanceof Error ? error.message : "Unknown error"
-      console.log("[v0] Error content:", errorContent)
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
         role: "assistant",
@@ -417,8 +399,8 @@ function WelcomeScreen({ onQuickPrompt }: { onQuickPrompt: (prompt: string) => v
           const data = await res.json()
           setStats(data.data)
         }
-      } catch (error) {
-        console.error("[v0] Failed to fetch stats:", error)
+      } catch {
+        // Stats fetch failed - show defaults
       } finally {
         setLoading(false)
       }
