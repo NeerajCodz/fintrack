@@ -136,6 +136,10 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
                 onNewChat={handleNewChat}
                 onSelectConversation={handleSelectConversation}
                 onDeleteConversation={handleDeleteConversation}
+                onOpenContacts={() => {
+                  setContactsOpen(true)
+                  setSidebarOpen(false)
+                }}
                 onSignOut={handleSignOut}
                 userEmail={userEmail}
                 isLoading={isLoading}

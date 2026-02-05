@@ -10,8 +10,15 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "FinTrack - AI Financial Tracker",
-  description: "Track expenses, dues, and bills with an AI-powered financial coach",
+  title: "FinTrack AI - Smart Financial Tracking",
+  description: "Track expenses, dues, and bills with an AI-powered financial coach. Manage shared costs with friends, set bill reminders, and gain insights into your spending habits.",
+  keywords: ["finance", "expense tracker", "AI", "budget", "money management", "bill tracker"],
+  authors: [{ name: "FinTrack" }],
+  openGraph: {
+    title: "FinTrack AI - Smart Financial Tracking",
+    description: "Track expenses, dues, and bills with an AI-powered financial coach.",
+    type: "website",
+  },
 }
 
 export const viewport: Viewport = {

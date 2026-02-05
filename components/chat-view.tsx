@@ -147,7 +147,6 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
   
   // Status messages for real-time feedback
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
   useEffect(() => {
     conversationIdRef.current = currentConversationId
@@ -471,9 +470,21 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
 
             {/* Error display */}
             {error && (
-              <div className="glass rounded-xl p-4 border border-red-500/30 text-red-400">
-                <p className="text-sm">Error: {error.message}</p>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass rounded-xl p-4 border border-red-500/30"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-4 w-4 text-red-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-red-400 font-medium">Something went wrong</p>
+                    <p className="text-xs text-red-400/70 mt-1">{error.message || "Please try again"}</p>
+                  </div>
+                </div>
+              </motion.div>
             )}
 
             <div ref={messagesEndRef} />
