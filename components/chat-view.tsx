@@ -364,10 +364,18 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
     // Show status message
     setStatusMessage("Processing your request...")
     
-    sendMessage({ text: messageText })
+    console.log("[v0] Sending message:", { text: messageText, convId })
+    
+    try {
+      await sendMessage({ text: messageText })
+      console.log("[v0] Message sent successfully")
+    } catch (err) {
+      console.error("[v0] Error sending message:", err)
+      setStatusMessage(`Error: ${err instanceof Error ? err.message : "Failed to send message"}`)
+    }
     
     // Clear status after a delay
-    setTimeout(() => setStatusMessage(null), 3000)
+    setTimeout(() => setStatusMessage(null), 5000)
   }
 
   function handleQuickPrompt(prompt: string) {
