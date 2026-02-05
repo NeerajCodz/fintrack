@@ -750,7 +750,7 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
             </div>
             <p className="text-xs text-muted-foreground mb-1">This Month</p>
             {loading ? (
-              <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
+              <div className="h-6 w-20 bg-muted rounded animate-pulse" />
             ) : (
               <p className="text-lg font-bold">
                 {formatCurrency(stats?.totalSpentThisMonth || 0)}
@@ -766,7 +766,7 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
             </div>
             <p className="text-xs text-muted-foreground mb-1">Top Category</p>
             {loading ? (
-              <div className="h-6 w-16 bg-white/5 rounded animate-pulse" />
+              <div className="h-6 w-16 bg-muted rounded animate-pulse" />
             ) : (
               <p className="text-lg font-bold capitalize">
                 {stats?.topCategory?.category || "None"}
@@ -782,7 +782,7 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
             </div>
             <p className="text-xs text-muted-foreground mb-1">You Owe</p>
             {loading ? (
-              <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
+              <div className="h-6 w-20 bg-muted rounded animate-pulse" />
             ) : (
               <p className="text-lg font-bold text-destructive">{formatCurrency(totalYouOwe)}</p>
             )}
@@ -796,7 +796,7 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
             </div>
             <p className="text-xs text-muted-foreground mb-1">Owed to You</p>
             {loading ? (
-              <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
+              <div className="h-6 w-20 bg-muted rounded animate-pulse" />
             ) : (
               <p className="text-lg font-bold text-success">{formatCurrency(totalOwedToYou)}</p>
             )}
