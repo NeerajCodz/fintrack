@@ -51,15 +51,10 @@ function getMessageText(message: {
   content?: string
   role?: string
 }): string {
-  // Debug log for understanding message structure
-  console.log("[v0] getMessageText called with:", JSON.stringify(message, null, 2).substring(0, 1500))
-  
   if (message.parts && Array.isArray(message.parts)) {
     const textParts: string[] = []
     
     for (const p of message.parts) {
-      console.log("[v0] Processing part type:", p.type, "state:", (p as { state?: string }).state)
-      
       // Handle text parts
       if (p.type === "text" && typeof p.text === "string" && p.text.trim()) {
         textParts.push(p.text)
@@ -68,9 +63,8 @@ function getMessageText(message: {
       // Handle tool-invocation with result (AI SDK 6 format)
       if (p.type === "tool-invocation") {
         const invocation = p as { state?: string; result?: unknown; output?: unknown; toolName?: string }
-        console.log("[v0] Tool invocation:", invocation.toolName, "state:", invocation.state, "result:", JSON.stringify(invocation.result).substring(0, 200))
         
-        // Check if result is available (state could be "result" or "output-available")
+        // Check if result is available
         if (invocation.result) {
           const result = invocation.result as { response?: string; message?: string; success?: boolean; error?: string }
           if (result?.response) {
@@ -80,7 +74,6 @@ function getMessageText(message: {
           } else if (result?.error) {
             textParts.push(`Error: ${result.error}`)
           } else if (result?.success) {
-            // If we have success but no message, create one
             textParts.push("Action completed successfully.")
           }
         }
@@ -99,7 +92,6 @@ function getMessageText(message: {
       }
     }
     
-    console.log("[v0] Extracted text parts:", textParts)
     if (textParts.length > 0) return textParts.join("\n\n")
   }
   
