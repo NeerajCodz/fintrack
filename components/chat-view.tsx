@@ -181,13 +181,9 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
       }),
     }),
     onError: (err) => {
-      console.error("[v0] useChat onError:", err)
       setStatusMessage(`Error: ${err.message || "Unknown error occurred"}`)
     },
   })
-  
-  // Log status changes for debugging
-  console.log("[v0] Chat status:", status, "Messages:", messages.length, "Error:", error?.message)
 
   const isLoading = status === "streaming" || status === "submitted"
 
@@ -368,14 +364,11 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
     // Show status message
     setStatusMessage("Processing your request...")
     
-    console.log("[v0] Sending message:", { text: messageText, convId })
-    
     try {
       await sendMessage({ text: messageText })
-      console.log("[v0] Message sent successfully")
     } catch (err) {
-      console.error("[v0] Error sending message:", err)
       setStatusMessage(`Error: ${err instanceof Error ? err.message : "Failed to send message"}`)
+      return
     }
     
     // Clear status after a delay

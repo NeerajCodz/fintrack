@@ -27,15 +27,12 @@ function getGroqClient() {
 }
 
 export async function POST(request: Request) {
-  console.log("[v0] Chat API called")
   try {
     const supabase = await createClient()
 
     const {
       data: { user },
     } = await supabase.auth.getUser()
-
-    console.log("[v0] User authenticated:", !!user)
 
     if (!user) {
       return Response.json({ error: "Not authenticated" }, { status: 401 })
@@ -44,9 +41,6 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { messages, conversationId } = body
     const userId = user.id
-    
-    console.log("[v0] Received message count:", messages?.length, "conversationId:", conversationId)
-    console.log("[v0] GROQ_API_KEY exists:", !!process.env.GROQ_API_KEY)
 
 
 
@@ -148,9 +142,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
     const modelMessages = await convertToModelMessages(messages)
     
     // Get Groq client - this will throw if GROQ_API_KEY is missing
-    console.log("[v0] Creating Groq client...")
     const groq = getGroqClient()
-    console.log("[v0] Groq client created, starting stream...")
     
     const result = streamText({
       model: groq("llama-3.3-70b-versatile"),
@@ -568,7 +560,6 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
       },
       maxSteps: 5,
       onFinish: async ({ response }) => {
-        console.log("[v0] onFinish called, conversationId:", conversationId, "response messages:", response.messages.length)
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
@@ -609,7 +600,6 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
           const assistantContent = assistantParts.filter(Boolean).join("\n")
 
           // Save user message
-          console.log("[v0] Saving messages to DB, assistantContent length:", assistantContent.length)
           if (lastUserMessage) {
             const userText =
               typeof lastUserMessage.content === "string"
@@ -646,14 +636,11 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
       },
     })
 
-    console.log("[v0] Returning stream response...")
-    
     // Consume stream in background to ensure onFinish runs
     consumeStream(result.fullStream)
     
     return result.toUIMessageStreamResponse()
   } catch (error) {
-    console.error("[v0] Chat API error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
     return Response.json({ error: errorMessage }, { status: 500 })
   }
