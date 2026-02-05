@@ -1,10 +1,6 @@
 import { streamText, tool, convertToModelMessages } from "ai"
 import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-})
 import { createClient } from "@/lib/supabase/server"
 import {
   getOrCreatePerson,
@@ -20,6 +16,15 @@ import {
   getAllDataForLLM,
 } from "@/lib/db"
 import { formatCurrency } from "@/lib/financial-utils"
+
+// Create Groq client lazily to ensure env vars are available at runtime
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY is not configured")
+  }
+  return createGroq({ apiKey })
+}
 
 export async function POST(request: Request) {
   try {
@@ -37,10 +42,7 @@ export async function POST(request: Request) {
     const { messages, conversationId } = body
     const userId = user.id
 
-    // Check for Groq API key
-    if (!process.env.GROQ_API_KEY) {
-      return Response.json({ error: "GROQ_API_KEY is not configured" }, { status: 500 })
-    }
+
 
     // Get dashboard data for context - wrapped in try-catch for resilience
     let dashboardData = {
@@ -138,6 +140,9 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
 
     // Convert UIMessage format (with parts array) to ModelMessage format (with content)
     const modelMessages = await convertToModelMessages(messages)
+    
+    // Get Groq client - this will throw if GROQ_API_KEY is missing
+    const groq = getGroqClient()
     
     const result = streamText({
       model: groq("llama-3.3-70b-versatile"),
