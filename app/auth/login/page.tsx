@@ -102,7 +102,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="bg-muted/50 border-white/10 focus:border-primary/50 transition-colors h-11"
+                className="bg-muted/50 border focus:border-primary/50 transition-colors h-11"
               />
             </motion.div>
 
@@ -120,7 +120,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="bg-muted/50 border-white/10 focus:border-primary/50 transition-colors h-11"
+                className="bg-muted/50 border focus:border-primary/50 transition-colors h-11"
               />
             </motion.div>
 
