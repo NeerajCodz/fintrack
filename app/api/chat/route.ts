@@ -27,12 +27,15 @@ function getGroqClient() {
 }
 
 export async function POST(request: Request) {
+  console.log("[v0] POST /api/chat called")
   try {
     const supabase = await createClient()
 
     const {
       data: { user },
     } = await supabase.auth.getUser()
+
+    console.log("[v0] Auth check - user:", user?.id ? "authenticated" : "NOT authenticated")
 
     if (!user) {
       return Response.json({ error: "Not authenticated" }, { status: 401 })
@@ -41,6 +44,8 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { messages, conversationId } = body
     const userId = user.id
+    
+    console.log("[v0] Request body - messages:", messages?.length, "conversationId:", conversationId)
 
 
 
@@ -140,9 +145,12 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
 
     // Convert UIMessage format (with parts array) to ModelMessage format (with content)
     const modelMessages = await convertToModelMessages(messages)
+    console.log("[v0] Converted messages:", modelMessages.length)
     
     // Get Groq client - this will throw if GROQ_API_KEY is missing
+    console.log("[v0] GROQ_API_KEY exists:", !!process.env.GROQ_API_KEY)
     const groq = getGroqClient()
+    console.log("[v0] Groq client created, starting streamText...")
     
     const result = streamText({
       model: groq("llama-3.3-70b-versatile"),
@@ -219,8 +227,10 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
             description: z.string().nullable().describe("What for"),
           }),
           execute: async ({ person_name, amount, category, merchant, description }) => {
+            console.log("[v0] log_expense_other_paid CALLED:", { person_name, amount, category, merchant, description })
             try {
               const person = await getOrCreatePerson(userId, person_name)
+              console.log("[v0] getOrCreatePerson result:", person)
               if (!person) {
                 return { success: false, error: "Failed to create person record" }
               }
@@ -232,6 +242,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
                 merchant: merchant || undefined,
                 paid_by: person.id,
               })
+              console.log("[v0] createTransaction result:", transaction)
 
               if (!transaction) {
                 return { success: false, error: "Failed to store transaction" }
@@ -279,6 +290,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
             description: z.string().nullable().describe("What it was for"),
           }),
           execute: async ({ person_name, amount, description }) => {
+            console.log("[v0] log_lent_money CALLED:", { person_name, amount, description })
             try {
               const allPeople = await getPeople(userId)
               const existingPerson = allPeople.find((p) => p.name.toLowerCase() === person_name.toLowerCase())
@@ -560,6 +572,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
       },
       maxSteps: 5,
       onFinish: async ({ response }) => {
+        console.log("[v0] onFinish called - conversationId:", conversationId, "response.messages:", response.messages.length)
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
@@ -636,11 +649,13 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
       },
     })
 
+    console.log("[v0] Starting stream consumption and returning response...")
     // Consume stream in background to ensure onFinish runs
     consumeStream(result.fullStream)
     
     return result.toUIMessageStreamResponse()
   } catch (error) {
+    console.error("[v0] Chat API ERROR:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
     return Response.json({ error: errorMessage }, { status: 500 })
   }
