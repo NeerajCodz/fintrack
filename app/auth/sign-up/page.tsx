@@ -1,13 +1,17 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
+
+import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Sparkles } from "lucide-react"
+import { AnimatedBackground } from "@/components/animated-background"
+import { motion } from "framer-motion"
+import { Wallet, ArrowRight, Sparkles } from "lucide-react"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -23,6 +27,7 @@ export default function SignUpPage() {
 
     const supabase = createClient()
 
+    // Sign up without email confirmation
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -39,6 +44,7 @@ export default function SignUpPage() {
       return
     }
 
+    // Auto sign in after signup (no email confirmation)
     if (data.user) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -46,6 +52,7 @@ export default function SignUpPage() {
       })
 
       if (signInError) {
+        // User created but couldn't sign in - redirect to login
         router.push("/auth/login?message=Account created. Please sign in.")
         return
       }
@@ -56,30 +63,45 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background relative">
-      {/* Ambient background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[40%] -right-[20%] w-[80%] h-[80%] rounded-full bg-gradient-to-br from-primary/[0.03] to-transparent blur-3xl" />
-        <div className="absolute -bottom-[30%] -left-[20%] w-[60%] h-[60%] rounded-full bg-gradient-to-tr from-success/[0.02] to-transparent blur-3xl" />
-      </div>
-
-      <div className="w-full max-w-md relative">
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
-          <div className="text-center space-y-4 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-foreground flex items-center justify-center mx-auto">
-              <span className="text-background font-bold text-lg">f.</span>
-            </div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      <AnimatedBackground />
+      
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-md"
+      >
+        <div className="glass-strong rounded-2xl p-8 glow-emerald">
+          <motion.div 
+            className="text-center space-y-4 mb-8"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <motion.div
+              className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center mx-auto"
+              whileHover={{ scale: 1.05, rotate: 5 }}
+              transition={{ type: "spring", stiffness: 400 }}
+            >
+              <Wallet className="h-8 w-8 text-white" />
+            </motion.div>
             <div>
-              <h1 className="text-2xl font-bold">Create Account</h1>
+              <h1 className="text-2xl font-bold gradient-text">Create Account</h1>
               <p className="text-muted-foreground text-sm mt-1">
                 Start tracking your finances with AI
               </p>
             </div>
-          </div>
+          </motion.div>
 
           <form onSubmit={handleSignUp} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <motion.div 
+              className="space-y-2"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Label htmlFor="email" className="text-foreground/80">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -88,12 +110,17 @@ export default function SignUpPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="h-11"
+                className="bg-muted/50 border-white/10 focus:border-primary/50 transition-colors h-11"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <motion.div 
+              className="space-y-2"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Label htmlFor="password" className="text-foreground/80">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -102,43 +129,62 @@ export default function SignUpPage() {
                 required
                 minLength={6}
                 autoComplete="new-password"
-                className="h-11"
+                className="bg-muted/50 border-white/10 focus:border-primary/50 transition-colors h-11"
               />
-            </div>
+            </motion.div>
 
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+              <motion.p 
+                className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+              >
                 {error}
-              </p>
+              </motion.p>
             )}
 
-            <Button
-              type="submit"
-              className="w-full h-11 bg-foreground text-background hover:bg-foreground/90"
-              disabled={loading}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
             >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 animate-pulse" />
-                  Creating account...
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  Get Started
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              )}
-            </Button>
+              <Button 
+                type="submit" 
+                className="w-full h-11 bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white font-medium transition-all duration-300" 
+                disabled={loading}
+              >
+                {loading ? (
+                  <motion.div
+                    className="flex items-center gap-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <Sparkles className="h-4 w-4 animate-pulse" />
+                    Creating account...
+                  </motion.div>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    Get Started
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                )}
+              </Button>
+            </motion.div>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
+          <motion.p 
+            className="text-center text-sm text-muted-foreground mt-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
             Already have an account?{" "}
-            <Link href="/auth/login" className="text-foreground hover:underline font-medium">
+            <Link href="/auth/login" className="text-primary hover:text-primary/80 transition-colors font-medium">
               Sign in
             </Link>
-          </p>
+          </motion.p>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }
