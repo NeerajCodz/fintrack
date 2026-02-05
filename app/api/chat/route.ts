@@ -568,6 +568,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
       },
       maxSteps: 5,
       onFinish: async ({ response }) => {
+        console.log("[v0] onFinish called, conversationId:", conversationId, "response messages:", response.messages.length)
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
@@ -608,6 +609,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
           const assistantContent = assistantParts.filter(Boolean).join("\n")
 
           // Save user message
+          console.log("[v0] Saving messages to DB, assistantContent length:", assistantContent.length)
           if (lastUserMessage) {
             const userText =
               typeof lastUserMessage.content === "string"
@@ -645,9 +647,11 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
     })
 
     console.log("[v0] Returning stream response...")
-    return result.toUIMessageStreamResponse({
-      consumeSseStream: consumeStream,
-    })
+    
+    // Consume stream in background to ensure onFinish runs
+    consumeStream(result.fullStream)
+    
+    return result.toUIMessageStreamResponse()
   } catch (error) {
     console.error("[v0] Chat API error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
