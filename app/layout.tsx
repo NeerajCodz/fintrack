@@ -10,19 +10,19 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "FinTrack AI - Smart Financial Tracking",
-  description: "Track expenses, dues, and bills with an AI-powered financial coach. Manage shared costs with friends, set bill reminders, and gain insights into your spending habits.",
+  title: "fin. - Smart Financial Tracking",
+  description: "Track expenses, dues, and bills with an AI-powered financial copilot. Manage shared costs with friends, set bill reminders, and gain insights into your spending habits.",
   keywords: ["finance", "expense tracker", "AI", "budget", "money management", "bill tracker"],
-  authors: [{ name: "FinTrack" }],
+  authors: [{ name: "fin" }],
   openGraph: {
-    title: "FinTrack AI - Smart Financial Tracking",
-    description: "Track expenses, dues, and bills with an AI-powered financial coach.",
+    title: "fin. - Smart Financial Tracking",
+    description: "Track expenses, dues, and bills with an AI-powered financial copilot.",
     type: "website",
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0a0f1a",
+  themeColor: "#f5f3f0",
   width: "device-width",
   initialScale: 1,
 }

@@ -167,16 +167,16 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
-        <header className="md:hidden glass-strong border-b border-white/10 px-4 py-3 flex items-center gap-3 z-10">
+        <header className="md:hidden bg-card border-b border-border px-4 py-3 flex items-center gap-3 z-10">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(true)}
-            className="hover:bg-white/10"
+            className="hover:bg-muted"
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold gradient-text">FinTrack AI</h1>
+          <h1 className="text-lg font-semibold">fin.</h1>
         </header>
 
         {/* Chat View */}

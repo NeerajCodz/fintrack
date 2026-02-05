@@ -111,22 +111,21 @@ export function Sidebar({
   )
 
   return (
-    <div className="w-[280px] h-full glass-strong border-r border-white/10 flex flex-col">
+    <div className="w-[280px] h-full bg-card border-r border-border flex flex-col">
       {/* Logo */}
-      <div className="p-4 border-b border-white/10">
+      <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3">
           <motion.div
             whileHover={{ scale: 1.05, rotate: 5 }}
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20"
+            className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center shadow-sm"
           >
-            <Wallet className="h-5 w-5 text-white" />
+            <Wallet className="h-5 w-5 text-background" />
           </motion.div>
           <div>
-            <h1 className="text-lg font-bold gradient-text flex items-center gap-2">
-              FinTrack
-              <Sparkles className="h-4 w-4 text-emerald-400" />
+            <h1 className="text-lg font-bold flex items-center gap-2">
+              fin.
             </h1>
-            <p className="text-xs text-muted-foreground">AI Financial Coach</p>
+            <p className="text-xs text-muted-foreground">financial copilot</p>
           </div>
         </div>
       </div>
@@ -136,7 +135,7 @@ export function Sidebar({
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Button
             onClick={onNewChat}
-            className="w-full justify-start gap-2 bg-gradient-to-r from-blue-500/20 to-emerald-500/20 hover:from-blue-500/30 hover:to-emerald-500/30 border border-white/10 text-foreground"
+            className="w-full justify-start gap-2 bg-foreground text-background hover:bg-foreground/90"
           >
             <Plus className="h-4 w-4" />
             New Chat
@@ -146,7 +145,7 @@ export function Sidebar({
           <Button
             onClick={onOpenContacts}
             variant="ghost"
-            className="w-full justify-start gap-2 hover:bg-purple-500/10 text-muted-foreground hover:text-purple-300"
+            className="w-full justify-start gap-2 hover:bg-muted text-muted-foreground hover:text-foreground"
           >
             <Users className="h-4 w-4" />
             Contacts
@@ -156,14 +155,14 @@ export function Sidebar({
           <Button
             onClick={onOpenReminders}
             variant="ghost"
-            className="w-full justify-start gap-2 hover:bg-amber-500/10 text-muted-foreground hover:text-amber-300 relative"
+            className="w-full justify-start gap-2 hover:bg-muted text-muted-foreground hover:text-foreground relative"
           >
             <Bell className="h-4 w-4" />
             Reminders
             {/* Badge for overdue (red) only */}
             {reminderBadges.overdue > 0 && (
               <span
-                className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center bg-red-500 text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 min-w-5 h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center bg-destructive text-destructive-foreground"
               >
                 {reminderBadges.overdue}
               </span>
@@ -179,7 +178,7 @@ export function Sidebar({
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-12 rounded-lg bg-white/5 animate-pulse"
+                className="h-12 rounded-lg bg-muted animate-pulse"
               />
             ))}
           </div>
@@ -211,11 +210,11 @@ export function Sidebar({
                         onClick={() => onSelectConversation(conv.id)}
                         className={`w-full justify-start text-left h-auto py-3 px-3 ${
                           activeConversationId === conv.id
-                            ? "bg-gradient-to-r from-blue-500/20 to-emerald-500/20 border border-blue-500/30"
-                            : "hover:bg-white/5"
+                            ? "bg-muted border border-border"
+                            : "hover:bg-muted/50"
                         }`}
                       >
-                        <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0 text-muted-foreground" />
+                        <MessageSquare className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
                         <span className="truncate text-sm">{conv.title}</span>
                       </Button>
                       <Button
@@ -225,7 +224,7 @@ export function Sidebar({
                           e.stopPropagation()
                           onDeleteConversation(conv.id)
                         }}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/20 hover:text-red-400"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -239,9 +238,9 @@ export function Sidebar({
       </ScrollArea>
 
       {/* User Section */}
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-border">
         <div className="flex items-center gap-2 px-2 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white text-sm font-medium">
+          <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center text-background text-sm font-medium">
             {userEmail.charAt(0).toUpperCase()}
           </div>
           <span className="text-sm text-muted-foreground truncate flex-1">
@@ -251,7 +250,7 @@ export function Sidebar({
         <Button
           variant="ghost"
           onClick={onSignOut}
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-white/5"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-muted"
         >
           <LogOut className="h-4 w-4" />
           Sign out

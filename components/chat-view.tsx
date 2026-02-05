@@ -394,8 +394,8 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
               animate={{ opacity: 1, scale: 1 }}
               className="flex flex-col items-center gap-4"
             >
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Loader2 className="h-6 w-6 text-white animate-spin" />
+              <div className="w-12 h-12 rounded-xl bg-foreground flex items-center justify-center shadow-sm">
+                <Loader2 className="h-6 w-6 text-background animate-spin" />
               </div>
               <p className="text-sm text-muted-foreground">Loading conversation...</p>
             </motion.div>
@@ -411,8 +411,8 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                 animate={{ opacity: 1, y: 0 }}
                 className="flex flex-col items-center justify-center py-16 text-center"
               >
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center mb-4">
-                  <Bot className="h-8 w-8 text-emerald-400" />
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                  <Bot className="h-8 w-8 text-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Continue Your Conversation</h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
@@ -432,16 +432,16 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                     className={`flex gap-4 ${message.role === "user" ? "flex-row-reverse" : ""}`}
                   >
                     <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${
+                      className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${
                         message.role === "user"
-                          ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-blue-500/20"
-                          : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-500/20"
+                          ? "bg-foreground"
+                          : "bg-muted"
                       }`}
                     >
                       {message.role === "user" ? (
-                        <User className="h-4 w-4 text-white" />
+                        <User className="h-4 w-4 text-background" />
                       ) : (
-                        <Bot className="h-4 w-4 text-white" />
+                        <Bot className="h-4 w-4 text-foreground" />
                       )}
                     </div>
 
@@ -449,8 +449,8 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                       <div
                         className={`inline-block rounded-2xl px-4 py-3 ${
                           message.role === "user"
-                            ? "bg-gradient-to-br from-blue-500/90 to-blue-600/90 text-white"
-                            : "glass"
+                            ? "bg-foreground text-background"
+                            : "bg-card border border-border"
                         }`}
                       >
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">
@@ -478,30 +478,30 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                 animate={{ opacity: 1, y: 0 }}
                 className="flex gap-4"
               >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                  <Bot className="h-4 w-4 text-white" />
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shadow-sm">
+                  <Bot className="h-4 w-4 text-foreground" />
                 </div>
-                <div className="glass rounded-2xl px-4 py-3 max-w-[80%]">
+                <div className="bg-card border border-border rounded-2xl px-4 py-3 max-w-[80%]">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 text-emerald-400 animate-spin" />
-                      <span className="text-sm text-emerald-400 font-medium">
+                      <Loader2 className="h-4 w-4 text-foreground animate-spin" />
+                      <span className="text-sm text-foreground font-medium">
                         {statusMessage || "Processing..."}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <motion.div
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        className="w-1.5 h-1.5 rounded-full bg-foreground"
                         animate={{ scale: [1, 1.3, 1] }}
                         transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
                       />
                       <motion.div
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        className="w-1.5 h-1.5 rounded-full bg-foreground"
                         animate={{ scale: [1, 1.3, 1] }}
                         transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
                       />
                       <motion.div
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                        className="w-1.5 h-1.5 rounded-full bg-foreground"
                         animate={{ scale: [1, 1.3, 1] }}
                         transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
                       />
@@ -516,15 +516,15 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass rounded-xl p-4 border border-red-500/30"
+                className="bg-card rounded-xl p-4 border border-destructive/30"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="h-4 w-4 text-red-400" />
+                  <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-red-400 font-medium">Something went wrong</p>
-                    <p className="text-xs text-red-400/70 mt-1">{error.message || "Please try again"}</p>
+                    <p className="text-sm text-destructive font-medium">Something went wrong</p>
+                    <p className="text-xs text-destructive/70 mt-1">{error.message || "Please try again"}</p>
                   </div>
                 </div>
               </motion.div>
@@ -712,9 +712,9 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
           initial={{ scale: 0.8 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-          className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-2xl shadow-blue-500/30"
+          className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-foreground flex items-center justify-center shadow-sm"
         >
-          <Wallet className="h-10 w-10 text-white" />
+          <Wallet className="h-10 w-10 text-background" />
         </motion.div>
 
         <motion.h1
@@ -723,7 +723,7 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
           transition={{ delay: 0.3 }}
           className="text-4xl font-bold mb-3"
         >
-          <span className="gradient-text">FinTrack AI</span>
+          fin.
         </motion.h1>
 
         <motion.p
@@ -742,63 +742,63 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
           transition={{ delay: 0.5 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"
         >
-          <div className="glass rounded-xl p-4 border border-white/10">
+          <div className="bg-card rounded-xl p-4 border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-blue-400" />
+              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-foreground" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mb-1">This Month</p>
             {loading ? (
               <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
             ) : (
-              <p className="text-lg font-bold text-blue-400">
+              <p className="text-lg font-bold">
                 {formatCurrency(stats?.totalSpentThisMonth || 0)}
               </p>
             )}
           </div>
 
-          <div className="glass rounded-xl p-4 border border-white/10">
+          <div className="bg-card rounded-xl p-4 border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <Receipt className="h-4 w-4 text-emerald-400" />
+              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                <Receipt className="h-4 w-4 text-foreground" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mb-1">Top Category</p>
             {loading ? (
               <div className="h-6 w-16 bg-white/5 rounded animate-pulse" />
             ) : (
-              <p className="text-lg font-bold text-emerald-400 capitalize">
+              <p className="text-lg font-bold capitalize">
                 {stats?.topCategory?.category || "None"}
               </p>
             )}
           </div>
 
-          <div className="glass rounded-xl p-4 border border-white/10">
+          <div className="bg-card rounded-xl p-4 border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                <TrendingDown className="h-4 w-4 text-red-400" />
+              <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <TrendingDown className="h-4 w-4 text-destructive" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mb-1">You Owe</p>
             {loading ? (
               <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
             ) : (
-              <p className="text-lg font-bold text-red-400">{formatCurrency(totalYouOwe)}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totalYouOwe)}</p>
             )}
           </div>
 
-          <div className="glass rounded-xl p-4 border border-white/10">
+          <div className="bg-card rounded-xl p-4 border border-border">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-green-400" />
+              <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-success" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mb-1">Owed to You</p>
             {loading ? (
               <div className="h-6 w-20 bg-white/5 rounded animate-pulse" />
             ) : (
-              <p className="text-lg font-bold text-green-400">{formatCurrency(totalOwedToYou)}</p>
+              <p className="text-lg font-bold text-success">{formatCurrency(totalOwedToYou)}</p>
             )}
           </div>
         </motion.div>
