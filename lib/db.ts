@@ -332,6 +332,77 @@ export async function createNote(
   return !error
 }
 
+// ============ ALL DATA FOR LLM ============
+
+export async function getAllDataForLLM(userId: string): Promise<{
+  transactionsCSV: string
+  duesCSV: string
+  billsCSV: string
+  peopleCSV: string
+}> {
+  const supabase = await createClient()
+
+  // Get all transactions
+  const { data: transactions } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("date", { ascending: false })
+    .limit(100)
+
+  // Get all people with balances
+  const { data: people } = await supabase
+    .from("people")
+    .select("*")
+    .eq("user_id", userId)
+
+  // Get pending dues
+  const { data: dues } = await supabase
+    .from("dues")
+    .select("*, person:people(name)")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+
+  // Get pending bills
+  const { data: bills } = await supabase
+    .from("bills")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+
+  // Format as CSV strings
+  const transactionsCSV = transactions && transactions.length > 0
+    ? "date,amount,category,merchant,description,paid_by\n" +
+      transactions.map(t => 
+        `${t.date},${t.amount},${t.category},${t.merchant || ""},${t.description || ""},${t.paid_by}`
+      ).join("\n")
+    : "No transactions yet"
+
+  const peopleCSV = people && people.length > 0
+    ? "name,balance,relationship\n" +
+      people.map(p => 
+        `${p.name},${p.running_balance},${p.relationship || ""}`
+      ).join("\n")
+    : "No contacts yet"
+
+  const duesCSV = dues && dues.length > 0
+    ? "person,amount,status,due_date\n" +
+      dues.map(d => {
+        const personName = (d.person as { name?: string })?.name || "Unknown"
+        return `${personName},${d.amount},${d.status},${d.due_date || ""}`
+      }).join("\n")
+    : "No pending dues"
+
+  const billsCSV = bills && bills.length > 0
+    ? "name,amount,due_date,recurring\n" +
+      bills.map(b => 
+        `${b.name},${b.amount},${b.due_date},${b.recurring}`
+      ).join("\n")
+    : "No pending bills"
+
+  return { transactionsCSV, duesCSV, billsCSV, peopleCSV }
+}
+
 // ============ DASHBOARD ============
 
 export async function getDashboardData(userId: string): Promise<DashboardData> {

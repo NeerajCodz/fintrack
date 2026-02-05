@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { FinancialApp } from "@/components/financial-app"
+import dynamic from "next/dynamic"
+
+// Dynamically import to avoid chunk loading issues
+const FinancialApp = dynamic(
+  () => import("@/components/financial-app").then((mod) => mod.FinancialApp),
+  { ssr: false }
+)
 
 interface ChatPageProps {
   params: Promise<{ id: string }>
@@ -29,5 +35,5 @@ export default async function ChatPage({ params }: ChatPageProps) {
     redirect("/")
   }
 
-  return <FinancialApp userEmail={user.email || "User"} initialConversationId={id} />
+  return <FinancialApp userEmail={user.email || ""} initialConversationId={id} />
 }

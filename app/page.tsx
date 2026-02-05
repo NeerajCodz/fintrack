@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { FinancialApp } from "@/components/financial-app"
+import dynamic from "next/dynamic"
+
+const FinancialApp = dynamic(
+  () => import("@/components/financial-app").then((mod) => mod.FinancialApp),
+  { ssr: false }
+)
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -12,5 +17,5 @@ export default async function HomePage() {
     redirect("/auth/login")
   }
 
-  return <FinancialApp userEmail={user.email || "User"} />
+  return <FinancialApp userEmail={user.email || ""} />
 }
