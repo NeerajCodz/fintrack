@@ -192,7 +192,7 @@ export function DashboardPanel() {
                   insight.type === "warning"
                     ? "bg-destructive/10 border border-destructive/20 text-destructive"
                     : insight.type === "achievement"
-                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                    ? "bg-amber-500/10 border border-amber-500/20 text-amber-700"
                     : "bg-primary/10 border border-primary/20 text-primary"
                 }`}
               >
@@ -215,8 +215,8 @@ export function DashboardPanel() {
         animate="visible"
         transition={{ delay: 0.1 }}
       >
-        <Card className="glass border-white/10 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none" />
+        <Card className="glass border-border overflow-hidden">
+          <div className="absolute inset-0 bg-primary/3 pointer-events-none" />
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Wallet className="h-4 w-4 text-primary" />
@@ -234,9 +234,9 @@ export function DashboardPanel() {
             </motion.p>
             {data.topCategory && (
               <div className="flex items-center gap-2 mt-2">
-                <Sparkles className="h-3 w-3 text-emerald-400" />
+                <Sparkles className="h-3 w-3 text-amber-600" />
                 <p className="text-xs text-muted-foreground">
-                  Top: <span className="text-emerald-400 font-medium">{data.topCategory.category}</span> ({formatCurrency(data.topCategory.total)})
+                  Top: <span className="text-amber-600 font-medium">{data.topCategory.category}</span> ({formatCurrency(data.topCategory.total)})
                 </p>
               </div>
             )}
@@ -251,8 +251,8 @@ export function DashboardPanel() {
         animate="visible"
         transition={{ delay: 0.2 }}
       >
-        <Card className="glass border-white/10 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent pointer-events-none" />
+        <Card className="glass border-border overflow-hidden">
+          <div className="absolute inset-0 bg-destructive/3 pointer-events-none" />
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendingDown className="h-4 w-4 text-destructive" />
@@ -278,7 +278,7 @@ export function DashboardPanel() {
                     </span>
                   </motion.div>
                 ))}
-                <div className="pt-2 border-t border-white/10 flex justify-between text-sm font-bold">
+                <div className="pt-2 border-t border-border flex justify-between text-sm font-bold">
                   <span>Total</span>
                   <span className="text-destructive">{formatCurrency(totalOwed)}</span>
                 </div>
@@ -295,11 +295,11 @@ export function DashboardPanel() {
         animate="visible"
         transition={{ delay: 0.3 }}
       >
-        <Card className="glass border-white/10 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
+        <Card className="glass border-border overflow-hidden">
+          <div className="absolute inset-0 bg-amber-500/3 pointer-events-none" />
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <TrendingUp className="h-4 w-4 text-amber-600" />
               Owed to You
             </CardTitle>
           </CardHeader>
@@ -317,14 +317,14 @@ export function DashboardPanel() {
                     className="flex justify-between text-sm items-center"
                   >
                     <span className="text-foreground capitalize">{due.person}</span>
-                    <span className="font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full text-xs">
+                    <span className="font-medium text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded-full text-xs">
                       {formatCurrency(due.amount)}
                     </span>
                   </motion.div>
                 ))}
-                <div className="pt-2 border-t border-white/10 flex justify-between text-sm font-bold">
+                <div className="pt-2 border-t border-border flex justify-between text-sm font-bold">
                   <span>Total</span>
-                  <span className="text-emerald-400">{formatCurrency(totalOwedToYou)}</span>
+                  <span className="text-amber-700">{formatCurrency(totalOwedToYou)}</span>
                 </div>
               </div>
             )}
@@ -339,8 +339,8 @@ export function DashboardPanel() {
         animate="visible"
         transition={{ delay: 0.4 }}
       >
-        <Card className="glass border-white/10 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
+        <Card className="glass border-border overflow-hidden">
+          <div className="absolute inset-0 bg-primary/3 pointer-events-none" />
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />

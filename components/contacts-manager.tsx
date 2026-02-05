@@ -158,7 +158,7 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
       onClick={onClose}
     >
       <motion.div
@@ -166,7 +166,7 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="w-full max-w-5xl max-h-[90vh] glass rounded-2xl border border-white/10 overflow-hidden flex flex-col"
+        className="w-full max-w-5xl max-h-[90vh] glass rounded-2xl border border-border overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {viewingPerson ? (
@@ -182,11 +182,11 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
         ) : (
           <>
             {/* Header */}
-            <div className="p-6 border-b border-white/10">
+            <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                    <Users className="h-5 w-5 text-white" />
+                  <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
+                    <Users className="h-5 w-5 text-primary-foreground" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold">Contacts</h2>
@@ -199,7 +199,7 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
                   variant="ghost"
                   size="icon"
                   onClick={onClose}
-                  className="rounded-full hover:bg-white/10"
+                  className="rounded-full hover:bg-accent"
                 >
                   <X className="h-5 w-5" />
                 </Button>
@@ -207,24 +207,24 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
 
               {/* Summary Cards */}
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="glass rounded-xl p-4 border border-red-500/20">
+                <div className="glass rounded-xl p-4 border border-destructive/20">
                   <div className="flex items-center gap-2 mb-2">
-                    <TrendingDown className="h-5 w-5 text-red-400" />
+                    <TrendingDown className="h-5 w-5 text-destructive" />
                     <span className="text-sm text-muted-foreground">You Owe</span>
                   </div>
-                  <p className="text-2xl font-bold text-red-400">
+                  <p className="text-2xl font-bold text-destructive">
                     {formatCurrency(totalYouOwe)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {people.filter((p) => p.running_balance > 0).length} people
                   </p>
                 </div>
-                <div className="glass rounded-xl p-4 border border-green-500/20">
+                <div className="glass rounded-xl p-4 border border-amber-500/20">
                   <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className="h-5 w-5 text-green-400" />
+                    <TrendingUp className="h-5 w-5 text-amber-600" />
                     <span className="text-sm text-muted-foreground">Owed to You</span>
                   </div>
-                  <p className="text-2xl font-bold text-green-400">
+                  <p className="text-2xl font-bold text-amber-700">
                     {formatCurrency(totalOwedToYou)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -241,17 +241,17 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
                     placeholder="Search contacts..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white/5 border-white/10"
+                    className="pl-10 bg-muted/50 border-border"
                   />
                 </div>
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/20">
+                    <Button className="bg-primary hover:bg-primary/90 shadow-lg">
                       <Plus className="h-4 w-4 mr-2" />
                       Add Contact
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="glass border-white/10">
+                  <DialogContent className="glass border-border">
                     <DialogHeader>
                       <DialogTitle>Add New Contact</DialogTitle>
                     </DialogHeader>
@@ -277,7 +277,7 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
                   {searchTerm ? "No contacts found" : "No contacts yet. Add your first one!"}
                 </div>
               ) : (
-                <div className="divide-y divide-white/5">
+                <div className="divide-y divide-border">
                   <AnimatePresence>
                     {filteredPeople.map((person) => (
                       <motion.div
@@ -286,9 +286,9 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setViewingPerson(person)}
-                        className="p-4 cursor-pointer hover:bg-white/5 transition-colors flex items-center gap-4"
+                        className="p-4 cursor-pointer hover:bg-accent transition-colors flex items-center gap-4"
                       >
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white font-medium text-lg shadow-lg shadow-blue-500/10">
+                        <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium text-lg shadow-lg">
                           {person.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -310,7 +310,7 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
                             <div>
                               <p
                                 className={`font-bold text-lg ${
-                                  person.running_balance > 0 ? "text-red-400" : "text-green-400"
+                                  person.running_balance > 0 ? "text-destructive" : "text-amber-700"
                                 }`}
                               >
                                 {formatCurrency(person.running_balance)}
@@ -335,7 +335,7 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialView
 
         {/* Edit Dialog */}
         <Dialog open={!!editingPerson} onOpenChange={(open) => !open && setEditingPerson(null)}>
-          <DialogContent className="glass border-white/10">
+          <DialogContent className="glass border-border">
             <DialogHeader>
               <DialogTitle>Edit Contact</DialogTitle>
             </DialogHeader>
@@ -389,7 +389,7 @@ function PersonForm({ person, onSave, onCancel, saving }: PersonFormProps) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="John Doe"
-          className="bg-white/5 border-white/10"
+          className="bg-muted/50 border-border"
           required
         />
       </div>
@@ -401,7 +401,7 @@ function PersonForm({ person, onSave, onCancel, saving }: PersonFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="john@example.com"
-          className="bg-white/5 border-white/10"
+          className="bg-muted/50 border-border"
         />
       </div>
 
@@ -412,14 +412,14 @@ function PersonForm({ person, onSave, onCancel, saving }: PersonFormProps) {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="+1 234 567 8900"
-          className="bg-white/5 border-white/10"
+          className="bg-muted/50 border-border"
         />
       </div>
 
       <div>
         <label className="text-sm font-medium mb-1 block">Relationship</label>
         <Select value={relationship} onValueChange={setRelationship}>
-          <SelectTrigger className="bg-white/5 border-white/10">
+          <SelectTrigger className="bg-muted/50 border-border">
             <SelectValue placeholder="Select relationship" />
           </SelectTrigger>
           <SelectContent>
@@ -439,7 +439,7 @@ function PersonForm({ person, onSave, onCancel, saving }: PersonFormProps) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Any notes about this contact..."
-          className="bg-white/5 border-white/10 min-h-[80px]"
+          className="bg-muted/50 border-border min-h-[80px]"
         />
       </div>
 
@@ -448,14 +448,14 @@ function PersonForm({ person, onSave, onCancel, saving }: PersonFormProps) {
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="flex-1 bg-transparent border-white/10"
+          className="flex-1 bg-transparent border-border"
           disabled={saving}
         >
           Cancel
         </Button>
         <Button
           type="submit"
-          className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500"
+          className="flex-1 bg-primary hover:bg-primary/90"
           disabled={saving || !name.trim()}
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : person ? "Save Changes" : "Add Contact"}

@@ -131,7 +131,7 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+              className="fixed inset-0 bg-foreground/40 z-40 md:hidden"
               onClick={() => setSidebarOpen(false)}
             />
             <motion.div

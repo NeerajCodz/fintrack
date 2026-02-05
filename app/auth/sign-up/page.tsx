@@ -72,7 +72,7 @@ export default function SignUpPage() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="w-full max-w-md"
       >
-        <div className="glass-strong rounded-2xl p-8 glow-emerald">
+        <div className="glass-strong rounded-2xl p-8 glow-warm">
           <motion.div 
             className="text-center space-y-4 mb-8"
             initial={{ opacity: 0, y: 10 }}
@@ -80,11 +80,11 @@ export default function SignUpPage() {
             transition={{ delay: 0.1 }}
           >
             <motion.div
-              className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center mx-auto"
+              className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto"
               whileHover={{ scale: 1.05, rotate: 5 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
-              <Wallet className="h-8 w-8 text-white" />
+              <Wallet className="h-8 w-8 text-primary-foreground" />
             </motion.div>
             <div>
               <h1 className="text-2xl font-bold gradient-text">Create Account</h1>
@@ -150,7 +150,7 @@ export default function SignUpPage() {
             >
               <Button 
                 type="submit" 
-                className="w-full h-11 bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white font-medium transition-all duration-300" 
+                className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-300" 
                 disabled={loading}
               >
                 {loading ? (

@@ -211,7 +211,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-foreground/40 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <motion.div
@@ -219,13 +219,13 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl max-h-[85vh] glass-strong rounded-2xl border border-white/10 flex flex-col overflow-hidden"
+        className="w-full max-w-2xl max-h-[85vh] glass-strong rounded-2xl border border-border flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <Bell className="h-5 w-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg">
+              <Bell className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
               <h2 className="text-lg font-bold">Reminders</h2>
@@ -238,19 +238,19 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="rounded-full hover:bg-white/10"
+            className="rounded-full hover:bg-accent"
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 p-3 border-b border-white/10">
+        <div className="flex gap-2 p-3 border-b border-border">
           <Button
             variant={activeTab === "upcoming" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("upcoming")}
-            className={activeTab === "upcoming" ? "bg-amber-500/20 text-amber-300" : ""}
+            className={activeTab === "upcoming" ? "bg-amber-500/20 text-amber-700" : ""}
           >
             <Clock className="h-4 w-4 mr-2" />
             Upcoming ({pendingPayments.length})
@@ -259,7 +259,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
             variant={activeTab === "history" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("history")}
-            className={activeTab === "history" ? "bg-emerald-500/20 text-emerald-300" : ""}
+            className={activeTab === "history" ? "bg-primary/20 text-primary" : ""}
           >
             <Check className="h-4 w-4 mr-2" />
             Paid ({paidPayments.length})
@@ -268,7 +268,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
             variant={activeTab === "settings" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("settings")}
-            className={activeTab === "settings" ? "bg-blue-500/20 text-blue-300" : ""}
+            className={activeTab === "settings" ? "bg-stone-500/20 text-stone-700" : ""}
           >
             <Settings className="h-4 w-4 mr-2" />
             Settings
@@ -306,10 +306,10 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                       animate={{ opacity: 1, y: 0 }}
                       className={`glass rounded-xl p-4 border ${
                         isOverdue
-                          ? "border-red-500/30 bg-red-500/5"
+                          ? "border-destructive/30 bg-destructive/5"
                           : isDueSoon
                             ? "border-amber-500/30 bg-amber-500/5"
-                            : "border-white/10"
+                            : "border-border"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -317,16 +317,16 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                           <div
                             className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                               isOverdue
-                                ? "bg-red-500/20"
+                                ? "bg-destructive/20"
                                 : isDueSoon
                                   ? "bg-amber-500/20"
-                                  : "bg-white/10"
+                                  : "bg-muted"
                             }`}
                           >
                             {isOverdue ? (
-                              <AlertCircle className="h-5 w-5 text-red-400" />
+                              <AlertCircle className="h-5 w-5 text-destructive" />
                             ) : (
-                              <Calendar className="h-5 w-5 text-amber-400" />
+                              <Calendar className="h-5 w-5 text-amber-600" />
                             )}
                           </div>
                           <div>
@@ -344,9 +344,9 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                           <p
                             className={`text-xs ${
                               isOverdue
-                                ? "text-red-400"
+                                ? "text-destructive"
                                 : isDueSoon
-                                  ? "text-amber-400"
+                                  ? "text-amber-600"
                                   : "text-muted-foreground"
                             }`}
                           >
@@ -367,7 +367,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                           size="sm"
                           onClick={() => handleMarkThisOccurrencePaid(payment.id)}
                           disabled={processingPayment === payment.id}
-                          className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
+                          className="flex-1 bg-primary/20 hover:bg-primary/30 text-primary"
                         >
                           {processingPayment === payment.id ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -394,7 +394,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDeleteReminder(reminder.id)}
-                            className="text-red-400 hover:bg-red-500/20"
+                            className="text-destructive hover:bg-destructive/20"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -407,7 +407,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
 
               {/* List of all recurring reminders */}
               {reminders.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-white/10">
+                <div className="mt-6 pt-4 border-t border-border">
                   <h3 className="text-sm font-medium text-muted-foreground mb-3">
                     All Recurring Reminders
                   </h3>
@@ -415,7 +415,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                     {reminders.map((reminder) => (
                       <div
                         key={reminder.id}
-                        className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5"
+                        className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50"
                       >
                         <div>
                           <p className="text-sm font-medium">{reminder.name}</p>
@@ -433,7 +433,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                             size="icon"
                             variant="ghost"
                             onClick={() => handleDeleteReminder(reminder.id)}
-                            className="h-7 w-7 text-red-400 hover:bg-red-500/20"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/20"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -449,7 +449,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
               {/* Recently paid section */}
               {recentlyPaidPayments.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="text-sm font-medium text-emerald-400 mb-3 flex items-center gap-2">
+                  <h3 className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
                     <Check className="h-4 w-4" />
                     Recently Paid (last 3 days)
                   </h3>
@@ -463,12 +463,12 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                           key={payment.id}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="glass rounded-xl p-4 border border-emerald-500/30 bg-emerald-500/5"
+                          className="glass rounded-xl p-4 border border-primary/30 bg-primary/5"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                                <Check className="h-5 w-5 text-emerald-400" />
+                              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                                <Check className="h-5 w-5 text-primary" />
                               </div>
                               <div>
                                 <p className="font-medium">{reminder?.name || "Payment"}</p>
@@ -479,7 +479,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                             </div>
 
                             <div className="flex items-center gap-3">
-                              <p className="font-bold text-lg text-emerald-400">
+                              <p className="font-bold text-lg text-primary">
                                 {formatCurrency(payment.amount)}
                               </p>
                               {canUndo && (
@@ -518,11 +518,11 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                       key={payment.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="glass rounded-xl p-4 border border-white/10"
+                      className="glass rounded-xl p-4 border border-border"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
                             <Check className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div>
@@ -554,7 +554,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                       size="sm"
                       variant={settings.weekStartDay === i ? "default" : "ghost"}
                       onClick={() => saveSettings({ ...settings, weekStartDay: i })}
-                      className={settings.weekStartDay === i ? "bg-blue-500/30 text-blue-300" : ""}
+                      className={settings.weekStartDay === i ? "bg-primary/30 text-primary" : ""}
                     >
                       {day.slice(0, 3)}
                     </Button>
@@ -571,7 +571,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                       size="sm"
                       variant={settings.monthStartDay === day ? "default" : "ghost"}
                       onClick={() => saveSettings({ ...settings, monthStartDay: day })}
-                      className={settings.monthStartDay === day ? "bg-blue-500/30 text-blue-300" : ""}
+                      className={settings.monthStartDay === day ? "bg-primary/30 text-primary" : ""}
                     >
                       {day}{getOrdinalSuffix(day)}
                     </Button>
@@ -588,7 +588,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                       size="sm"
                       variant={settings.yearStartMonth === i ? "default" : "ghost"}
                       onClick={() => saveSettings({ ...settings, yearStartMonth: i })}
-                      className={settings.yearStartMonth === i ? "bg-blue-500/30 text-blue-300" : ""}
+                      className={settings.yearStartMonth === i ? "bg-primary/30 text-primary" : ""}
                     >
                       {month.slice(0, 3)}
                     </Button>
@@ -596,7 +596,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/10">
+              <div className="pt-4 border-t border-border">
                 <p className="text-xs text-muted-foreground">
                   These settings affect how weekly, monthly, and yearly reminders are calculated
                   for reset cycles.
@@ -607,7 +607,7 @@ export function RemindersManager({ onClose }: RemindersManagerProps) {
         </ScrollArea>
 
         {/* Footer hint */}
-        <div className="p-3 border-t border-white/10 text-center">
+        <div className="p-3 border-t border-border text-center">
           <p className="text-xs text-muted-foreground">
             💡 Add reminders via chat: "Netflix 199 every 15th" or "Rent 5000 every 1st"
           </p>

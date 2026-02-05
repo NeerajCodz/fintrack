@@ -117,7 +117,7 @@ function renderMessageWithMentions(content: string): React.ReactNode {
     parts.push(
       <span
         key={match.index}
-        className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 font-medium"
+        className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-700 font-medium"
       >
         @{match[1]}
       </span>
@@ -536,7 +536,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-white/5 p-4">
+      <div className="border-t border-border p-4">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
           <div className="relative">
             {/* @mention dropdown */}
@@ -546,7 +546,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute bottom-full mb-2 left-0 right-0 glass rounded-xl border border-white/10 overflow-hidden max-h-48 overflow-y-auto z-20"
+                  className="absolute bottom-full mb-2 left-0 right-0 glass rounded-xl border border-border overflow-hidden max-h-48 overflow-y-auto z-20"
                 >
                   <div className="p-1">
                     <div className="px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1">
@@ -561,11 +561,11 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                           onClick={() => insertMention(person)}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                             index === mentionIndex
-                              ? "bg-purple-500/20 text-purple-300"
-                              : "hover:bg-white/5"
+                              ? "bg-amber-500/20 text-amber-700"
+                              : "hover:bg-accent"
                           }`}
                         >
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
+                          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
                             {person.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -577,7 +577,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                           {person.running_balance !== 0 && (
                             <span
                               className={`text-xs font-medium ${
-                                person.running_balance > 0 ? "text-red-400" : "text-green-400"
+                                person.running_balance > 0 ? "text-destructive" : "text-amber-700"
                               }`}
                             >
                               {person.running_balance > 0 ? "You owe" : "Owes you"}{" "}
@@ -610,10 +610,10 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                           }, 0)
                         }}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                          filteredPeople.length === 0 ? "bg-emerald-500/20 text-emerald-300" : "hover:bg-white/5"
+                          filteredPeople.length === 0 ? "bg-amber-500/20 text-amber-700" : "hover:bg-accent"
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-sm font-bold">
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
                           +
                         </div>
                         <div className="flex-1 min-w-0">
@@ -627,7 +627,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
               )}
             </AnimatePresence>
 
-            <div className="glass rounded-2xl border border-white/10 focus-within:border-blue-500/50 transition-colors">
+            <div className="glass rounded-2xl border border-border focus-within:border-primary/50 transition-colors">
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -647,12 +647,12 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
                   type="submit"
                   size="icon"
                   disabled={isLoading || !input.trim()}
-                  className="h-10 w-10 rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 transition-all duration-300 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                  className="h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 transition-all duration-300 shadow-lg disabled:opacity-50"
                 >
                   {isLoading ? (
-                    <Loader2 className="h-4 w-4 text-white animate-spin" />
+                    <Loader2 className="h-4 w-4 text-primary-foreground animate-spin" />
                   ) : (
-                    <Send className="h-4 w-4 text-white" />
+                    <Send className="h-4 w-4 text-primary-foreground" />
                   )}
                   <span className="sr-only">Send message</span>
                 </Button>
@@ -660,7 +660,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
             </div>
           </div>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            Use <span className="text-purple-400 font-medium">@name</span> to mention contacts. Press Enter to send.
+            Use <span className="text-amber-600 font-medium">@name</span> to mention contacts. Press Enter to send.
           </p>
         </form>
       </div>
@@ -809,9 +809,9 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.55 }}
-            className="glass rounded-xl p-4 border border-purple-500/30 mb-6"
+            className="glass rounded-xl p-4 border border-amber-500/30 mb-6"
           >
-            <div className="flex items-center gap-2 text-purple-400 mb-3">
+            <div className="flex items-center gap-2 text-amber-600 mb-3">
               <AtSign className="h-4 w-4" />
               <span className="text-sm font-medium">People with balances</span>
             </div>
@@ -823,12 +823,12 @@ function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuick
                   <button
                     key={person.id}
                     onClick={() => onOpenPersonContact?.(person)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
                   >
                     <span className="text-sm capitalize">@{person.name}</span>
                     <span
                       className={`text-xs font-medium ${
-                        person.running_balance > 0 ? "text-red-400" : "text-green-400"
+                        person.running_balance > 0 ? "text-destructive" : "text-amber-700"
                       }`}
                     >
                       {formatCurrency(Math.abs(person.running_balance))}

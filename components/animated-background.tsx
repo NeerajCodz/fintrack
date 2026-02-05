@@ -5,9 +5,9 @@ import { motion } from "framer-motion"
 export function AnimatedBackground() {
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-background">
-      {/* Large blue orb */}
+      {/* Large warm amber orb */}
       <motion.div
-        className="absolute w-[600px] h-[600px] rounded-full bg-blue-500/20 blur-[120px]"
+        className="absolute w-[600px] h-[600px] rounded-full bg-amber-500/10 blur-[120px]"
         initial={{ x: -300, y: -200 }}
         animate={{
           x: [-300, 100, -200, -300],
@@ -20,9 +20,9 @@ export function AnimatedBackground() {
         }}
       />
 
-      {/* Medium emerald orb */}
+      {/* Medium warm stone orb */}
       <motion.div
-        className="absolute w-[500px] h-[500px] rounded-full bg-emerald-500/15 blur-[100px]"
+        className="absolute w-[500px] h-[500px] rounded-full bg-orange-400/8 blur-[100px]"
         initial={{ x: "60vw", y: "20vh" }}
         animate={{
           x: ["60vw", "30vw", "70vw", "60vw"],
@@ -35,9 +35,9 @@ export function AnimatedBackground() {
         }}
       />
 
-      {/* Small blue accent */}
+      {/* Small warm accent */}
       <motion.div
-        className="absolute w-[300px] h-[300px] rounded-full bg-blue-400/10 blur-[80px]"
+        className="absolute w-[300px] h-[300px] rounded-full bg-yellow-500/6 blur-[80px]"
         initial={{ x: "80vw", y: "70vh" }}
         animate={{
           x: ["80vw", "50vw", "20vw", "80vw"],
@@ -50,9 +50,9 @@ export function AnimatedBackground() {
         }}
       />
 
-      {/* Additional emerald accent */}
+      {/* Additional warm stone accent */}
       <motion.div
-        className="absolute w-[400px] h-[400px] rounded-full bg-emerald-400/10 blur-[90px]"
+        className="absolute w-[400px] h-[400px] rounded-full bg-stone-400/6 blur-[90px]"
         initial={{ x: "10vw", y: "80vh" }}
         animate={{
           x: ["10vw", "40vw", "5vw", "10vw"],
@@ -69,8 +69,8 @@ export function AnimatedBackground() {
       <div 
         className="absolute inset-0 opacity-[0.02]"
         style={{
-          backgroundImage: `linear-gradient(hsl(217 91% 60% / 0.3) 1px, transparent 1px),
-            linear-gradient(90deg, hsl(217 91% 60% / 0.3) 1px, transparent 1px)`,
+          backgroundImage: `linear-gradient(hsl(30 30% 50% / 0.3) 1px, transparent 1px),
+            linear-gradient(90deg, hsl(30 30% 50% / 0.3) 1px, transparent 1px)`,
           backgroundSize: '60px 60px',
         }}
       />

@@ -48,7 +48,7 @@ export default function AuthErrorPage() {
           >
             <Button 
               asChild 
-              className="w-full h-11 bg-gradient-to-r from-blue-500 to-emerald-500 hover:from-blue-600 hover:to-emerald-600 text-white"
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               <Link href="/auth/login" className="flex items-center justify-center gap-2">
                 <ArrowLeft className="h-4 w-4" />

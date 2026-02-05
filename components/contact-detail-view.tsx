@@ -94,17 +94,17 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
     switch (activity.type) {
       case "transaction":
         return activity.direction === "in" ? (
-          <ArrowDownLeft className="h-4 w-4 text-green-400" />
+          <ArrowDownLeft className="h-4 w-4 text-amber-600" />
         ) : (
-          <ArrowUpRight className="h-4 w-4 text-red-400" />
+          <ArrowUpRight className="h-4 w-4 text-destructive" />
         )
       case "settlement":
-        return <CheckCircle className="h-4 w-4 text-emerald-400" />
+        return <CheckCircle className="h-4 w-4 text-amber-600" />
       case "due":
         return activity.status === "pending" ? (
-          <Clock className="h-4 w-4 text-yellow-400" />
+          <Clock className="h-4 w-4 text-yellow-600" />
         ) : (
-          <CheckCircle className="h-4 w-4 text-green-400" />
+          <CheckCircle className="h-4 w-4 text-amber-600" />
         )
       default:
         return <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -112,8 +112,8 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
   }
 
   const getActivityColor = (activity: Activity) => {
-    if (activity.direction === "in") return "text-green-400"
-    if (activity.direction === "out") return "text-red-400"
+    if (activity.direction === "in") return "text-amber-700"
+    if (activity.direction === "out") return "text-destructive"
     return "text-muted-foreground"
   }
 
@@ -125,13 +125,13 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
       className="h-full flex flex-col"
     >
       {/* Header */}
-      <div className="p-4 border-b border-white/10">
+      <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3 mb-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={onBack}
-            className="rounded-full hover:bg-white/10"
+            className="rounded-full hover:bg-accent"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -145,7 +145,7 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
             variant="ghost"
             size="icon"
             onClick={() => onEdit(person)}
-            className="rounded-full hover:bg-white/10"
+            className="rounded-full hover:bg-accent"
           >
             <Edit2 className="h-4 w-4" />
           </Button>
@@ -154,13 +154,13 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
         {/* Contact Info */}
         <div className="flex gap-4 mb-4">
           {person.email && (
-            <a href={`mailto:${person.email}`} className="flex items-center gap-1.5 text-sm text-blue-400 hover:underline">
+            <a href={`mailto:${person.email}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
               <Mail className="h-3.5 w-3.5" />
               {person.email}
             </a>
           )}
           {person.phone && (
-            <a href={`tel:${person.phone}`} className="flex items-center gap-1.5 text-sm text-green-400 hover:underline">
+            <a href={`tel:${person.phone}`} className="flex items-center gap-1.5 text-sm text-amber-600 hover:underline">
               <Phone className="h-3.5 w-3.5" />
               {person.phone}
             </a>
@@ -170,25 +170,25 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
         {/* Balance Summary Card */}
         <div className={`glass rounded-xl p-4 border ${
           person.running_balance > 0 
-            ? "border-red-500/30 bg-red-500/5" 
+            ? "border-destructive/30 bg-destructive/5" 
             : person.running_balance < 0 
-            ? "border-green-500/30 bg-green-500/5" 
-            : "border-white/10"
+            ? "border-amber-500/30 bg-amber-500/5" 
+            : "border-border"
         }`}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Total Balance</p>
               <p className={`text-3xl font-bold ${
                 person.running_balance > 0 
-                  ? "text-red-400" 
+                  ? "text-destructive" 
                   : person.running_balance < 0 
-                  ? "text-green-400" 
+                  ? "text-amber-700" 
                   : "text-muted-foreground"
               }`}>
                 {person.running_balance === 0 ? "All Settled" : formatCurrency(person.running_balance)}
               </p>
               <p className={`text-sm mt-1 ${
-                person.running_balance > 0 ? "text-red-400/80" : person.running_balance < 0 ? "text-green-400/80" : "text-muted-foreground"
+                person.running_balance > 0 ? "text-destructive/80" : person.running_balance < 0 ? "text-amber-700/80" : "text-muted-foreground"
               }`}>
                 {person.running_balance > 0 && `You owe ${person.name}`}
                 {person.running_balance < 0 && `${person.name} owes you`}
@@ -197,15 +197,15 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
             </div>
             <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
               person.running_balance > 0 
-                ? "bg-red-500/20" 
+                ? "bg-destructive/20" 
                 : person.running_balance < 0 
-                ? "bg-green-500/20" 
-                : "bg-white/10"
+                ? "bg-amber-500/20" 
+                : "bg-muted"
             }`}>
               {person.running_balance > 0 ? (
-                <TrendingDown className="h-6 w-6 text-red-400" />
+                <TrendingDown className="h-6 w-6 text-destructive" />
               ) : person.running_balance < 0 ? (
-                <TrendingUp className="h-6 w-6 text-green-400" />
+                <TrendingUp className="h-6 w-6 text-amber-600" />
               ) : (
                 <CheckCircle className="h-6 w-6 text-muted-foreground" />
               )}
@@ -214,12 +214,12 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
 
           {/* Quick Stats */}
           {summary && (
-            <div className="flex gap-4 mt-4 pt-4 border-t border-white/10">
+            <div className="flex gap-4 mt-4 pt-4 border-t border-border">
               <div className="flex-1 text-center">
                 <p className="text-2xl font-bold">{summary.transactionCount}</p>
                 <p className="text-xs text-muted-foreground">Transactions</p>
               </div>
-              <div className="flex-1 text-center border-l border-white/10">
+              <div className="flex-1 text-center border-l border-border">
                 <p className="text-2xl font-bold">{summary.pendingDuesCount}</p>
                 <p className="text-xs text-muted-foreground">Pending</p>
               </div>
@@ -231,7 +231,7 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
         <div className="flex gap-2 mt-4">
           <Button
             onClick={() => onChat(person)}
-            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            className="flex-1 bg-primary hover:bg-primary/90"
           >
             <MessageSquare className="h-4 w-4 mr-2" />
             Chat about {person.name}
@@ -265,15 +265,15 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="glass rounded-xl p-3 border border-white/5 hover:border-white/10 transition-colors"
+                  className="glass rounded-xl p-3 border border-border hover:border-primary/20 transition-colors"
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       activity.direction === "in" 
-                        ? "bg-green-500/20" 
+                        ? "bg-amber-500/20" 
                         : activity.direction === "out" 
-                        ? "bg-red-500/20" 
-                        : "bg-white/10"
+                        ? "bg-destructive/20" 
+                        : "bg-muted"
                     }`}>
                       {getActivityIcon(activity)}
                     </div>
@@ -294,17 +294,17 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
                           {formatTime(activity.time)}
                         </span>
                         {activity.category && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-white/10 capitalize">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-muted capitalize">
                             {activity.category}
                           </span>
                         )}
                         {activity.status === "pending" && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-700">
                             Pending
                           </span>
                         )}
                         {activity.status === "settled" && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700">
                             Settled
                           </span>
                         )}
@@ -320,16 +320,16 @@ export function ContactDetailView({ person, onBack, onChat, onEdit }: ContactDet
 
       {/* Notes */}
       {person.notes && (
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-border">
           <h3 className="text-sm font-semibold text-muted-foreground mb-2">Notes</h3>
-          <p className="text-sm whitespace-pre-wrap glass rounded-lg p-3 border border-white/5">
+          <p className="text-sm whitespace-pre-wrap glass rounded-lg p-3 border border-border">
             {person.notes}
           </p>
         </div>
       )}
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/10 text-xs text-muted-foreground">
+      <div className="p-4 border-t border-border text-xs text-muted-foreground">
         Contact added {formatDate(person.created_at)}
       </div>
     </motion.div>

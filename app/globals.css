@@ -18,7 +18,7 @@
   --color-accent-foreground: hsl(20 10% 12%);
   --color-destructive: hsl(0 65% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-success: hsl(145 60% 40%);
+  --color-success: hsl(30 60% 45%);
   --color-success-foreground: hsl(0 0% 100%);
   --color-warning: hsl(38 92% 50%);
   --color-warning-foreground: hsl(20 10% 12%);
@@ -28,11 +28,11 @@
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
   --radius-sm: 0.25rem;
-  --color-chart-1: hsl(145 60% 40%);
-  --color-chart-2: hsl(220 70% 50%);
+  --color-chart-1: hsl(30 60% 45%);
+  --color-chart-2: hsl(25 70% 50%);
   --color-chart-3: hsl(38 92% 50%);
   --color-chart-4: hsl(0 72% 50%);
-  --color-chart-5: hsl(280 65% 55%);
+  --color-chart-5: hsl(15 65% 55%);
 }
 
 * {
@@ -88,4 +88,29 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
+}
+
+/* Glass effects - warm cream solid backgrounds */
+.glass {
+  background-color: hsl(40 25% 98%);
+  border: 1px solid hsl(40 15% 88%);
+}
+
+.glass-strong {
+  background-color: hsl(40 25% 98%);
+  border: 1px solid hsl(40 15% 88%);
+  box-shadow: 0 4px 24px -4px hsl(20 10% 12% / 0.08);
+}
+
+/* Text gradients - warm tones */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(20 10% 12%) 0%, hsl(25 15% 30%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects - warm tones */
+.glow-warm {
+  box-shadow: 0 0 40px hsl(30 50% 50% / 0.15);
 }
