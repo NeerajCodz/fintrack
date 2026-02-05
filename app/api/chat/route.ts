@@ -74,6 +74,15 @@ YOUR BEHAVIOR:
 4. Never auto-settle dues - they persist until explicitly cleared
 5. If something involves money, use the tools to store it in the database
 6. Give short, direct responses. No motivational fluff.
+7. Answer general questions about finances, stats, balances using the context above
+8. For questions like "how much do I owe Ram?" - check the CURRENT USER CONTEXT and respond directly
+9. For stats questions like "how much did I spend?" - use get_dashboard or answer from context
+
+GENERAL CHAT:
+- If user asks stats questions ("how much do I owe?", "who owes me?", "my balance with X"), answer from context above
+- If user asks about a specific person's balance, answer directly from the context or use get_person_info
+- You can have normal conversations about finance topics - not everything needs a tool call
+- For questions you can answer from the CURRENT USER CONTEXT above, just respond directly
 
 MENTIONS:
 Users can mention contacts with @name syntax. When you see @name in a message, that refers to a person contact. Use the get_person_info tool to get detailed balance information about that person.
@@ -98,47 +107,21 @@ After calling ANY tool, you MUST immediately write a message to the user like:
 
 "Updated! [Name] - New balance: [You owe them $X / They owe you $X / All settled]"
 
-Keep responses SHORT and CLEAR:
+Keep responses SHORT and CLEAR. Examples:
 - "Done! Ajay owes you $60 now."
 - "Recorded! You owe Mike $25 for lunch."
 - "Settled! You and John are square."
-- "Added contact: Sarah. She owes you $100."
+- "Added Sarah. She owes you $100."
+- "Your balance with Ram: You owe him $40."
+- "This month: $500 spent. Top category: Food ($200)."
 
-EXAMPLE 1 - "Ajay owes me 60 for dinner":
----
-CONTACT: Ajay - Existing Contact
-ACTION: Recorded that Ajay borrowed money from you
-AMOUNT: $60.00 (Reason: dinner)
-RESULT: Ajay owes you $60.00
-STATUS: SUCCESS - Transaction saved to database
----
+IMPORTANT:
+1. ALWAYS respond with text after using a tool
+2. Show the NEW BALANCE after any update
+3. Keep it simple - one or two sentences max
+4. If something fails, say what went wrong
 
-EXAMPLE 2 - "@John paid for lunch $25":
----
-CONTACT: John - Existing Contact  
-ACTION: Recorded that John paid for you
-AMOUNT: $25.00 (Reason: lunch)
-RESULT: You owe John $25.00
-STATUS: SUCCESS - Transaction saved to database
----
-
-EXAMPLE 3 - "Mike owes me 30" (new contact):
----
-CONTACT: Mike - New Contact Created
-ACTION: Added new contact and recorded loan
-AMOUNT: $30.00
-RESULT: Mike owes you $30.00
-STATUS: SUCCESS - Contact created and transaction saved
----
-
-IMPORTANT RULES:
-1. ALWAYS respond with text after using a tool - never leave the user waiting
-2. If contact exists, show their current balance FIRST before updating
-3. When updating an existing contact's balance, confirm the change clearly
-4. Use the exact format above so users can quickly scan responses
-5. If something fails, explain what went wrong and suggest next steps
-
-When users ask for dashboard/summary, use the get_dashboard tool and format the data nicely with totals and breakdowns.`
+When users ask for dashboard/summary, use the get_dashboard tool and summarize the data.`
 
     // Convert UIMessage format (with parts array) to ModelMessage format (with content)
     const modelMessages = await convertToModelMessages(messages)
@@ -324,7 +307,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 response: `Updated! ${isNewContact ? "New contact created: " : ""}${person.name} now owes you ${formatCurrency(Math.abs(newBalance))}${description ? ` (${description})` : ""}.`,
               }
             } catch (err) {
-              console.log("[v0] log_lent_money error:", err)
+              // Log: log_lent_money error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -364,7 +347,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 response: `Received! ${person.name} paid you ${formatCurrency(receiveAmount)}. ${newBalance === 0 ? "All settled - you're square!" : newBalance < 0 ? `${person.name} still owes you ${formatCurrency(Math.abs(newBalance))}.` : `You now owe ${person.name} ${formatCurrency(newBalance)}.`}`,
               }
             } catch (err) {
-              console.log("[v0] receive_payment error:", err)
+              // Log: receive_payment error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -411,7 +394,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 response: `Paid! You paid ${person.name} ${formatCurrency(settleAmount)}. ${remaining === 0 ? "All settled - you're square!" : `You still owe ${person.name} ${formatCurrency(Math.abs(remaining))}.`}`,
               }
             } catch (err) {
-              console.log("[v0] settle_due error:", err)
+              // Log: settle_due error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -464,7 +447,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 response: `Bill added! ${name}: ${formatCurrency(amount)} due ${parsedDate}.${recurring ? ` Recurring ${recurrence_pattern || "monthly"}.` : ""}`,
               }
             } catch (err) {
-              console.log("[v0] create_bill error:", err)
+              // Log: create_bill error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -502,7 +485,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
                 response: `${person.name}: ${balanceText}`,
               }
             } catch (err) {
-              console.log("[v0] get_person_info error:", err)
+              // Log: get_person_info error:", err)
               return { success: false, error: String(err) }
             }
           },
@@ -556,23 +539,47 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
             }
           },
         }),
-
-        },
+      },
       maxSteps: 5,
       onFinish: async ({ response }) => {
         // Save the conversation if we have a conversationId
         if (conversationId) {
           const lastUserMessage = messages[messages.length - 1]
-          const assistantContent = response.messages
-            .filter((m) => m.role === "assistant")
-            .map((m) => {
-              if (typeof m.content === "string") return m.content
-              return m.content
-                .filter((p) => p.type === "text")
-                .map((p) => p.text)
-                .join("")
-            })
-            .join("\n")
+          
+          // Extract assistant content including tool results
+          const assistantParts: string[] = []
+          for (const m of response.messages) {
+            if (m.role === "assistant") {
+              if (typeof m.content === "string") {
+                assistantParts.push(m.content)
+              } else if (Array.isArray(m.content)) {
+                for (const part of m.content) {
+                  if (part.type === "text" && part.text) {
+                    assistantParts.push(part.text)
+                  }
+                  // Extract tool result responses
+                  if (part.type === "tool-call" && part.toolCallId) {
+                    // Find the tool result for this call
+                    const toolResultMsg = response.messages.find(
+                      (msg) => msg.role === "tool" && 
+                        Array.isArray(msg.content) && 
+                        msg.content.some((c: { toolCallId?: string }) => c.toolCallId === part.toolCallId)
+                    )
+                    if (toolResultMsg && Array.isArray(toolResultMsg.content)) {
+                      for (const resultPart of toolResultMsg.content) {
+                        if (resultPart.result && typeof resultPart.result === "object") {
+                          const result = resultPart.result as { response?: string; message?: string }
+                          if (result.response) assistantParts.push(result.response)
+                          else if (result.message) assistantParts.push(result.message)
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          const assistantContent = assistantParts.filter(Boolean).join("\n")
 
           // Save user message
           if (lastUserMessage) {
@@ -592,7 +599,7 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
             })
           }
 
-          // Save assistant message
+          // Save assistant message (including tool results)
           if (assistantContent) {
             await supabase.from("messages").insert({
               conversation_id: conversationId,
@@ -611,10 +618,8 @@ When users ask for dashboard/summary, use the get_dashboard tool and format the 
       },
     })
 
-    console.log("[v0] Returning stream response")
     return result.toUIMessageStreamResponse()
   } catch (error) {
-    console.log("[v0] API Error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
     return Response.json({ error: errorMessage }, { status: 500 })
   }

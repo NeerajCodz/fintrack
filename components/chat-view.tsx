@@ -145,6 +145,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
   
   // Status messages for real-time feedback
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
   useEffect(() => {
     conversationIdRef.current = currentConversationId
@@ -184,21 +185,6 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
 
   const isLoading = status === "streaming" || status === "submitted"
 
-  useEffect(() => {
-    setCurrentConversationId(conversationId)
-    conversationIdRef.current = conversationId
-  }, [conversationId])
-
-  useEffect(() => {
-    if (conversationId === null) {
-      setMessages([])
-      setCurrentConversationId(null)
-      conversationIdRef.current = null
-    } else if (conversationId !== currentConversationId) {
-      loadConversationMessages(conversationId)
-    }
-  }, [conversationId, currentConversationId, setMessages])
-
   const loadConversationMessages = useCallback(async (convId: string) => {
     try {
       const response = await fetch(`/api/conversations/${convId}/messages`)
@@ -217,6 +203,18 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
       // Silently fail
     }
   }, [setMessages])
+
+  // Load messages when conversation changes or on initial mount
+  useEffect(() => {
+    if (conversationId === null) {
+      setMessages([])
+      setCurrentConversationId(null)
+      conversationIdRef.current = null
+    } else if (conversationId) {
+      // Always load messages when we have a conversationId
+      loadConversationMessages(conversationId)
+    }
+  }, [conversationId, loadConversationMessages, setMessages])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
