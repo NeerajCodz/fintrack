@@ -1,4 +1,4 @@
-import { streamText, tool, convertToModelMessages } from "ai"
+import { streamText, tool, convertToModelMessages, consumeStream } from "ai"
 import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
@@ -644,7 +644,10 @@ When users ask for dashboard/summary, use the get_dashboard tool and summarize t
       },
     })
 
-    return result.toUIMessageStreamResponse()
+    console.log("[v0] Returning stream response...")
+    return result.toUIMessageStreamResponse({
+      consumeSseStream: consumeStream,
+    })
   } catch (error) {
     console.error("[v0] Chat API error:", error)
     const errorMessage = error instanceof Error ? error.message : String(error)
