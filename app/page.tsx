@@ -1,10 +1,8 @@
-import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { FinancialApp } from "@/components/financial-app"
-import Loading from "./loading"
+import { ChatInterface } from "@/components/chat-interface"
 
-async function HomeContent() {
+export default async function HomePage() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -14,13 +12,9 @@ async function HomeContent() {
     redirect("/auth/login")
   }
 
-  return <FinancialApp userEmail={user.email || ""} />
-}
-
-export default function HomePage() {
   return (
-    <Suspense fallback={<Loading />}>
-      <HomeContent />
-    </Suspense>
+    <main className="h-dvh">
+      <ChatInterface />
+    </main>
   )
 }

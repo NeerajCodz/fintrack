@@ -1,30 +1,32 @@
 import React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Inter, JetBrains_Mono } from "next/font/google"
 
 import "./globals.css"
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
 })
 
 export const metadata: Metadata = {
-  title: "FinTrack AI - Smart Financial Tracking",
-  description: "Track expenses, dues, and bills with an AI-powered financial coach. Manage shared costs with friends, set bill reminders, and gain insights into your spending habits.",
-  keywords: ["finance", "expense tracker", "AI", "budget", "money management", "bill tracker"],
-  authors: [{ name: "FinTrack" }],
-  openGraph: {
-    title: "FinTrack AI - Smart Financial Tracking",
-    description: "Track expenses, dues, and bills with an AI-powered financial coach.",
-    type: "website",
-  },
+  title: "fin. - Financial Copilot",
+  description: "Your AI-powered financial command center",
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0a0f1a",
+  themeColor: "#f5f3ef",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -33,8 +35,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased`}>{children}</body>
+    <html lang="en">
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>{children}</body>
     </html>
   )
 }
