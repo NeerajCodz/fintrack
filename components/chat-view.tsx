@@ -26,6 +26,7 @@ interface ChatViewProps {
   onConversationCreated: (id: string, title: string) => void
   pendingChatPerson?: Person | null
   onClearPendingPerson?: () => void
+  onOpenPersonContact?: (person: Person) => void
 }
 
 interface DashboardStats {
@@ -131,7 +132,7 @@ function renderMessageWithMentions(content: string): React.ReactNode {
   return parts.length > 0 ? parts : content
 }
 
-export function ChatView({ conversationId, onConversationCreated, pendingChatPerson, onClearPendingPerson }: ChatViewProps) {
+export function ChatView({ conversationId, onConversationCreated, pendingChatPerson, onClearPendingPerson, onOpenPersonContact }: ChatViewProps) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(conversationId)
   const [input, setInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -400,7 +401,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
             </motion.div>
           </div>
         ) : showWelcome ? (
-          <WelcomeScreen onQuickPrompt={handleQuickPrompt} people={people} />
+          <WelcomeScreen onQuickPrompt={handleQuickPrompt} people={people} onOpenPersonContact={onOpenPersonContact} />
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
             {/* Empty conversation state */}
@@ -667,7 +668,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
   )
 }
 
-function WelcomeScreen({ onQuickPrompt, people }: { onQuickPrompt: (prompt: string) => void; people: Person[] }) {
+function WelcomeScreen({ onQuickPrompt, people, onOpenPersonContact }: { onQuickPrompt: (prompt: string) => void; people: Person[]; onOpenPersonContact?: (person: Person) => void }) {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -821,7 +822,7 @@ function WelcomeScreen({ onQuickPrompt, people }: { onQuickPrompt: (prompt: stri
                 .map((person) => (
                   <button
                     key={person.id}
-                    onClick={() => onQuickPrompt(`Show me my balance with @${person.name}`)}
+                    onClick={() => onOpenPersonContact?.(person)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 transition-colors"
                   >
                     <span className="text-sm capitalize">@{person.name}</span>
@@ -863,25 +864,6 @@ function WelcomeScreen({ onQuickPrompt, people }: { onQuickPrompt: (prompt: stri
           </motion.div>
         )}
 
-        {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="flex items-center justify-center gap-2 flex-wrap"
-        >
-          {quickPrompts.map((item) => (
-            <motion.button
-              key={item.label}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => onQuickPrompt(item.prompt)}
-              className="glass px-4 py-2 rounded-full text-sm border border-white/10 hover:border-blue-500/50 transition-colors"
-            >
-              {item.label}
-            </motion.button>
-          ))}
-        </motion.div>
       </motion.div>
     </div>
   )

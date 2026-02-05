@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import type { Person, Transaction, Due, Bill, DashboardData } from "./types"
+import type { Person, Transaction, Due, Bill, DashboardData, RecurringReminder, ReminderPayment } from "./types"
 
 // ============ PEOPLE ============
 
@@ -470,4 +470,231 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     outstandingDues: { youOwe, owedToYou },
     upcomingBills,
   }
+}
+
+// ============ RECURRING REMINDERS ============
+
+export async function createRecurringReminder(
+  userId: string,
+  data: {
+    name: string
+    amount: number
+    recurrence_type: "daily" | "weekly" | "monthly" | "yearly"
+    recurrence_day?: number
+    category?: string
+    notes?: string
+  }
+): Promise<RecurringReminder | null> {
+  const supabase = await createClient()
+
+  // Calculate next due date based on recurrence
+  const now = new Date()
+  let nextDueDate = new Date()
+
+  if (data.recurrence_type === "weekly") {
+    // recurrence_day is 0-6 (Sunday-Saturday)
+    const dayOfWeek = data.recurrence_day ?? 1 // Default to Monday
+    const currentDay = now.getDay()
+    const daysUntil = (dayOfWeek - currentDay + 7) % 7 || 7
+    nextDueDate.setDate(now.getDate() + daysUntil)
+  } else if (data.recurrence_type === "monthly") {
+    // recurrence_day is 1-31
+    const dayOfMonth = data.recurrence_day ?? 1
+    nextDueDate = new Date(now.getFullYear(), now.getMonth(), dayOfMonth)
+    if (nextDueDate <= now) {
+      nextDueDate.setMonth(nextDueDate.getMonth() + 1)
+    }
+  } else if (data.recurrence_type === "yearly") {
+    // recurrence_day is day of year (1-365) - simplified to just add a year
+    nextDueDate.setFullYear(now.getFullYear() + 1)
+  } else {
+    // daily - next day
+    nextDueDate.setDate(now.getDate() + 1)
+  }
+
+  const { data: reminder, error } = await supabase
+    .from("recurring_reminders")
+    .insert({
+      user_id: userId,
+      name: data.name,
+      amount: data.amount,
+      recurrence_type: data.recurrence_type,
+      recurrence_day: data.recurrence_day ?? null,
+      next_due_date: nextDueDate.toISOString().split("T")[0],
+      category: data.category || "subscription",
+      notes: data.notes || null,
+      is_active: true,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating recurring reminder:", error)
+    return null
+  }
+
+  // Create the first pending payment
+  await supabase.from("reminder_payments").insert({
+    user_id: userId,
+    reminder_id: reminder.id,
+    due_date: nextDueDate.toISOString().split("T")[0],
+    amount: data.amount,
+    status: "pending",
+  })
+
+  return reminder as RecurringReminder
+}
+
+export async function getRecurringReminders(userId: string): Promise<RecurringReminder[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("recurring_reminders")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("next_due_date")
+
+  if (error) return []
+  return data as RecurringReminder[]
+}
+
+export async function getReminderPayments(
+  userId: string,
+  options?: { reminderId?: string; status?: string }
+): Promise<ReminderPayment[]> {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from("reminder_payments")
+    .select("*, reminder:recurring_reminders(*)")
+    .eq("user_id", userId)
+    .order("due_date", { ascending: false })
+
+  if (options?.reminderId) {
+    query = query.eq("reminder_id", options.reminderId)
+  }
+  if (options?.status) {
+    query = query.eq("status", options.status)
+  }
+
+  const { data, error } = await query.limit(50)
+
+  if (error) return []
+  return data as ReminderPayment[]
+}
+
+export async function markReminderPaid(
+  paymentId: string,
+  userId: string,
+  createNextOccurrence: boolean = false
+): Promise<{ success: boolean; nextPayment?: ReminderPayment }> {
+  const supabase = await createClient()
+
+  // Get the payment and its reminder
+  const { data: payment } = await supabase
+    .from("reminder_payments")
+    .select("*, reminder:recurring_reminders(*)")
+    .eq("id", paymentId)
+    .eq("user_id", userId)
+    .single()
+
+  if (!payment) return { success: false }
+
+  // Mark as paid
+  const { error: updateError } = await supabase
+    .from("reminder_payments")
+    .update({ status: "paid", paid_date: new Date().toISOString().split("T")[0] })
+    .eq("id", paymentId)
+
+  if (updateError) return { success: false }
+
+  // Only create next occurrence if explicitly requested
+  if (createNextOccurrence) {
+    const reminder = payment.reminder as RecurringReminder
+    if (reminder && reminder.is_active) {
+      const currentDue = new Date(payment.due_date)
+      let nextDue = new Date(currentDue)
+
+      if (reminder.recurrence_type === "daily") {
+        nextDue.setDate(currentDue.getDate() + 1)
+      } else if (reminder.recurrence_type === "weekly") {
+        nextDue.setDate(currentDue.getDate() + 7)
+      } else if (reminder.recurrence_type === "monthly") {
+        nextDue.setMonth(currentDue.getMonth() + 1)
+      } else if (reminder.recurrence_type === "yearly") {
+        nextDue.setFullYear(currentDue.getFullYear() + 1)
+      }
+
+      // Update reminder's next due date
+      await supabase
+        .from("recurring_reminders")
+        .update({ next_due_date: nextDue.toISOString().split("T")[0], updated_at: new Date().toISOString() })
+        .eq("id", reminder.id)
+
+      // Create next payment
+      const { data: nextPayment } = await supabase
+        .from("reminder_payments")
+        .insert({
+          user_id: userId,
+          reminder_id: reminder.id,
+          due_date: nextDue.toISOString().split("T")[0],
+          amount: reminder.amount,
+          status: "pending",
+        })
+        .select()
+        .single()
+
+      return { success: true, nextPayment: nextPayment as ReminderPayment }
+    }
+  }
+
+  return { success: true }
+}
+
+export async function deleteRecurringReminder(reminderId: string, userId: string): Promise<boolean> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("recurring_reminders")
+    .update({ is_active: false })
+    .eq("id", reminderId)
+    .eq("user_id", userId)
+
+  return !error
+}
+
+export async function getRemindersForLLM(userId: string): Promise<string> {
+  const supabase = await createClient()
+
+  const { data: reminders } = await supabase
+    .from("recurring_reminders")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+
+  const { data: pendingPayments } = await supabase
+    .from("reminder_payments")
+    .select("*, reminder:recurring_reminders(name)")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+
+  if (!reminders?.length && !pendingPayments?.length) {
+    return "No recurring reminders set up"
+  }
+
+  let csv = "RECURRING REMINDERS:\nname,amount,recurrence,next_due\n"
+  if (reminders) {
+    csv += reminders.map(r => `${r.name},${r.amount},${r.recurrence_type},${r.next_due_date}`).join("\n")
+  }
+
+  csv += "\n\nPENDING PAYMENTS:\nreminder,amount,due_date,status\n"
+  if (pendingPayments) {
+    csv += pendingPayments.map(p => {
+      const reminderName = (p.reminder as { name?: string })?.name || "Unknown"
+      return `${reminderName},${p.amount},${p.due_date},${p.status}`
+    }).join("\n")
+  }
+
+  return csv
 }

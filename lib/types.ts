@@ -98,6 +98,50 @@ export interface ParsedBill {
   recurrence_pattern?: string
 }
 
+export interface RecurringReminder {
+  id: string
+  user_id: string
+  name: string
+  amount: number
+  recurrence_type: "daily" | "weekly" | "monthly" | "yearly"
+  recurrence_day: number | null
+  next_due_date: string
+  category: string
+  notes: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ReminderPayment {
+  id: string
+  user_id: string
+  reminder_id: string
+  due_date: string
+  paid_date: string | null
+  amount: number
+  status: "pending" | "paid" | "skipped" | "overdue"
+  created_at: string
+  reminder?: RecurringReminder
+}
+
+// JSON output types from AI
+export type AIActionType = "i_owe" | "they_owe" | "create_reminder" | "mark_paid" | "question" | "greeting" | "unknown"
+
+export interface AIJsonOutput {
+  action: AIActionType
+  person?: string
+  amount?: number
+  description?: string
+  category?: string
+  // For reminders
+  reminder_name?: string
+  recurrence_type?: "daily" | "weekly" | "monthly" | "yearly"
+  recurrence_day?: number
+  // Response
+  message: string
+}
+
 export interface DashboardData {
   totalSpentThisMonth: number
   topCategory: { category: string; total: number } | null

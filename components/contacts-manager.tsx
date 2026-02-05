@@ -39,6 +39,7 @@ interface ContactsManagerProps {
   isOpen: boolean
   onClose: () => void
   onChatWithPerson?: (person: Person) => void
+  initialViewPerson?: Person | null
 }
 
 function formatCurrency(amount: number): string {
@@ -48,7 +49,7 @@ function formatCurrency(amount: number): string {
   }).format(Math.abs(amount))
 }
 
-export function ContactsManager({ isOpen, onClose, onChatWithPerson }: ContactsManagerProps) {
+export function ContactsManager({ isOpen, onClose, onChatWithPerson, initialViewPerson }: ContactsManagerProps) {
   const [people, setPeople] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -77,6 +78,13 @@ export function ContactsManager({ isOpen, onClose, onChatWithPerson }: ContactsM
       fetchPeople()
     }
   }, [isOpen, fetchPeople])
+
+  // Set viewing person when initialViewPerson changes
+  useEffect(() => {
+    if (initialViewPerson && isOpen) {
+      setViewingPerson(initialViewPerson)
+    }
+  }, [initialViewPerson, isOpen])
 
   const filteredPeople = people.filter(
     (p) =>

@@ -1,13 +1,14 @@
+import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { FinancialApp } from "@/components/financial-app"
+import ChatLoading from "./loading"
 
 interface ChatPageProps {
   params: Promise<{ id: string }>
 }
 
-export default async function ChatPage({ params }: ChatPageProps) {
-  const { id } = await params
+async function ChatContent({ id }: { id: string }) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -30,4 +31,14 @@ export default async function ChatPage({ params }: ChatPageProps) {
   }
 
   return <FinancialApp userEmail={user.email || ""} initialConversationId={id} />
+}
+
+export default async function ChatPage({ params }: ChatPageProps) {
+  const { id } = await params
+  
+  return (
+    <Suspense fallback={<ChatLoading />}>
+      <ChatContent id={id} />
+    </Suspense>
+  )
 }

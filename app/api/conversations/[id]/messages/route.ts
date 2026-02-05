@@ -34,6 +34,7 @@ export async function GET(
       .eq("conversation_id", id)
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
 
     if (error) {
       return Response.json({ error: error.message }, { status: 500 })

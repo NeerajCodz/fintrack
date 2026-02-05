@@ -7,6 +7,7 @@ import { AnimatedBackground } from "@/components/animated-background"
 import { ChatView } from "@/components/chat-view"
 import { Sidebar } from "@/components/sidebar"
 import { ContactsManager } from "@/components/contacts-manager"
+import { RemindersManager } from "@/components/reminders-manager"
 import type { Person } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
@@ -29,6 +30,8 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
   const [activeConversationId, setActiveConversationId] = useState<string | null>(initialConversationId || null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [contactsOpen, setContactsOpen] = useState(false)
+  const [viewingContactPerson, setViewingContactPerson] = useState<Person | null>(null)
+  const [remindersOpen, setRemindersOpen] = useState(false)
   const [pendingChatPerson, setPendingChatPerson] = useState<Person | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
@@ -89,8 +92,15 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
   function handleChatWithPerson(person: Person) {
     // Close contacts modal and start a new chat focused on this person
     setContactsOpen(false)
+    setViewingContactPerson(null)
     setPendingChatPerson(person)
     setActiveConversationId(null) // Start fresh conversation
+  }
+
+  function handleOpenPersonContact(person: Person) {
+    // Open contacts modal with this person's detail view
+    setViewingContactPerson(person)
+    setContactsOpen(true)
   }
 
   return (
@@ -106,6 +116,7 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
           onOpenContacts={() => setContactsOpen(true)}
+          onOpenReminders={() => setRemindersOpen(true)}
           onSignOut={handleSignOut}
           userEmail={userEmail}
           isLoading={isLoading}
@@ -140,6 +151,10 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
                   setContactsOpen(true)
                   setSidebarOpen(false)
                 }}
+                onOpenReminders={() => {
+                  setRemindersOpen(true)
+                  setSidebarOpen(false)
+                }}
                 onSignOut={handleSignOut}
                 userEmail={userEmail}
                 isLoading={isLoading}
@@ -170,15 +185,27 @@ export function FinancialApp({ userEmail, initialConversationId }: FinancialAppP
           onConversationCreated={handleConversationCreated}
           pendingChatPerson={pendingChatPerson}
           onClearPendingPerson={() => setPendingChatPerson(null)}
+          onOpenPersonContact={handleOpenPersonContact}
         />
       </div>
 
       {/* Contacts Manager Modal */}
       <ContactsManager
         isOpen={contactsOpen}
-        onClose={() => setContactsOpen(false)}
+        onClose={() => {
+          setContactsOpen(false)
+          setViewingContactPerson(null)
+        }}
         onChatWithPerson={handleChatWithPerson}
+        initialViewPerson={viewingContactPerson}
       />
+
+      {/* Reminders Manager Modal */}
+      <AnimatePresence>
+        {remindersOpen && (
+          <RemindersManager onClose={() => setRemindersOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

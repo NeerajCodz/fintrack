@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -10,6 +11,7 @@ import {
   Wallet,
   Sparkles,
   Users,
+  Bell,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
@@ -27,6 +29,7 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void
   onDeleteConversation: (id: string) => void
   onOpenContacts: () => void
+  onOpenReminders: () => void
   onSignOut: () => void
   userEmail: string
   isLoading: boolean
@@ -39,10 +42,51 @@ export function Sidebar({
   onSelectConversation,
   onDeleteConversation,
   onOpenContacts,
+  onOpenReminders,
   onSignOut,
   userEmail,
   isLoading,
 }: SidebarProps) {
+  // Badge counts for reminders
+  const [reminderBadges, setReminderBadges] = useState({ upcoming: 0, overdue: 0 })
+
+  useEffect(() => {
+    async function fetchBadges() {
+      try {
+        const res = await fetch("/api/reminders/payments")
+        if (res.ok) {
+          const data = await res.json()
+          const payments = data.payments || []
+          
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          
+          let overdue = 0
+          let upcoming = 0
+          
+          payments.forEach((p: { status: string; due_date: string; paid_date: string | null }) => {
+            if (p.status === "pending") {
+              const dueDate = new Date(p.due_date)
+              dueDate.setHours(0, 0, 0, 0)
+              if (dueDate < today) {
+                overdue++
+              } else {
+                upcoming++
+              }
+            }
+          })
+          
+          setReminderBadges({ upcoming, overdue })
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    
+    fetchBadges()
+    const interval = setInterval(fetchBadges, 60000) // Refresh every minute
+    return () => clearInterval(interval)
+  }, [])
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -106,6 +150,24 @@ export function Sidebar({
           >
             <Users className="h-4 w-4" />
             Contacts
+          </Button>
+        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={onOpenReminders}
+            variant="ghost"
+            className="w-full justify-start gap-2 hover:bg-amber-500/10 text-muted-foreground hover:text-amber-300 relative"
+          >
+            <Bell className="h-4 w-4" />
+            Reminders
+            {/* Badge for overdue (red) only */}
+            {reminderBadges.overdue > 0 && (
+              <span
+                className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold flex items-center justify-center bg-red-500 text-white"
+              >
+                {reminderBadges.overdue}
+              </span>
+            )}
           </Button>
         </motion.div>
       </div>
