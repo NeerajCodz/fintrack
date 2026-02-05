@@ -19,12 +19,13 @@ export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
+
+    const supabase = createClient()
 
     // Sign up without email confirmation
     const { data, error: signUpError } = await supabase.auth.signUp({
