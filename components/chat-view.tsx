@@ -147,6 +147,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
   
   // Status messages for real-time feedback
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   useEffect(() => {
     conversationIdRef.current = currentConversationId
@@ -187,6 +188,7 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
   const isLoading = status === "streaming" || status === "submitted"
 
   const loadConversationMessages = useCallback(async (convId: string) => {
+    setIsLoadingHistory(true)
     try {
       const response = await fetch(`/api/conversations/${convId}/messages`)
       if (response.ok) {
@@ -199,9 +201,15 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
         setMessages(uiMessages)
         setCurrentConversationId(convId)
         conversationIdRef.current = convId
+      } else {
+        // Handle error - clear messages and show empty state
+        setMessages([])
       }
     } catch {
-      // Silently fail
+      // On error, clear messages
+      setMessages([])
+    } finally {
+      setIsLoadingHistory(false)
     }
   }, [setMessages])
 
@@ -367,16 +375,45 @@ export function ChatView({ conversationId, onConversationCreated, pendingChatPer
     textareaRef.current?.focus()
   }
 
-  const showWelcome = messages.length === 0 && !conversationId
+  const showWelcome = messages.length === 0 && !conversationId && !isLoadingHistory
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
-        {showWelcome ? (
+        {isLoadingHistory ? (
+          <div className="flex-1 flex items-center justify-center h-full min-h-[400px]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-4"
+            >
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Loader2 className="h-6 w-6 text-white animate-spin" />
+              </div>
+              <p className="text-sm text-muted-foreground">Loading conversation...</p>
+            </motion.div>
+          </div>
+        ) : showWelcome ? (
           <WelcomeScreen onQuickPrompt={handleQuickPrompt} people={people} />
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+            {/* Empty conversation state */}
+            {messages.length === 0 && conversationId && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center py-16 text-center"
+              >
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center mb-4">
+                  <Bot className="h-8 w-8 text-emerald-400" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Continue Your Conversation</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Type a message below to continue this conversation with your AI financial assistant.
+                </p>
+              </motion.div>
+            )}
             <AnimatePresence mode="popLayout">
               {messages.map((message) => {
                 const content = getMessageText(message)
